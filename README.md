@@ -74,13 +74,16 @@ Electric fences are widely deployed across agricultural zones to protect valuabl
 
 | File | Purpose |
 | :--- | :--- |
-| **[`index.html`](./index.html)** | Mobile PWA & Vision Engine (TensorFlow.js, Web Bluetooth, Tailwind UI, HUD overlay) |
+| **[`index.html`](./index.html)** | Mobile PWA & Vision Engine (TensorFlow.js, Web Bluetooth, Tailwind UI, HUD overlay, Selfie/Rear lens toggle) |
 | **[`manifest.json`](./manifest.json)** | Progressive Web App manifest for standalone fullscreen mobile operation |
-| **[`sw.js`](./sw.js)** | Service Worker for caching and offline resilience |
+| **[`sw.js`](./sw.js)** | Service Worker v2.0 for caching and offline resilience (Network-First strategy) |
+| **[`netlify.toml`](./netlify.toml)** | Netlify configuration specifying publish directory, security headers, and MIME types |
+| **[`_headers`](./_headers)** | Cache-busting headers for Service Worker and security headers for Netlify CDN |
+| **[`_redirects`](./_redirects)** | SPA routing fallback rules for clean PWA routing on Netlify |
 | **[`icon.svg`](./icon.svg)** | High-resolution vector icon for app home screen installation |
 | **[`esp32_firmware.ino`](./esp32_firmware.ino)** | Arduino C++ firmware for ESP32 with Nordic UART Service & Fail-Safe Logic |
 | **[`HARDWARE_GUIDE.md`](./HARDWARE_GUIDE.md)** | Step-by-step breadboard wiring guide, pinout tables, and laser fence setup |
-| **[`serve_https.py`](./serve_https.py)** | Lightweight local HTTPS web server for development testing |
+| **[`serve_https.py`](./serve_https.py)** | Dual-mode local server (HTTP 8000 + HTTPS 8443) for development testing |
 
 ---
 
@@ -139,31 +142,46 @@ See [`HARDWARE_GUIDE.md`](./HARDWARE_GUIDE.md) for full schematic and breadboard
 > [!IMPORTANT]
 > Both the **Web Bluetooth API** and **Camera Access (`getUserMedia`)** strictly require a **Secure Context (HTTPS)** or `localhost`. If hosted over plain HTTP on a local IP, mobile browsers will block Bluetooth and Camera permissions.
 
-### Option A: Free 1-Click Hosting on GitHub Pages (Recommended)
-1. Create a new GitHub repository named `smart-fence`.
-2. Push or upload `index.html`, `manifest.json`, `sw.js`, and `icon.svg`.
-3. In GitHub, go to **Settings** $\rightarrow$ **Pages**.
-4. Under **Build and deployment**, set Source to **Deploy from a branch**, select `main` (or `master`), folder `/ (root)`, and click **Save**.
-5. Within 60 seconds, your site will be live at `https://<your-username>.github.io/smart-fence/` with free SSL!
-6. Open this link on your smartphone's Chrome or Edge browser.
+### Option A: Free Instant Hosting on Netlify (Recommended)
+Netlify provides **automatic, trusted Let's Encrypt SSL certificates**, which means no mobile security warnings and 100% reliable Web Bluetooth and Camera access on iOS and Android Chrome.
 
-### Option B: Deploying on Vercel or Netlify
-- Drag and drop this folder onto [Vercel](https://vercel.com) or [Netlify Drop](https://app.netlify.com/drop).
-- You get an instant `https://your-project.vercel.app` URL.
+#### Method 1: Git Push & Continuous Deployment (Best Practice)
+1. Push your project to GitHub:
+   ```bash
+   git remote add origin https://github.com/<your-username>/smart-fence.git
+   git branch -M main
+   git push -u origin main
+   ```
+2. Log into [Netlify](https://app.netlify.com/).
+3. Click **Add new site** $\rightarrow$ **Import an existing project** $\rightarrow$ **GitHub**.
+4. Select your `smart-fence` repository.
+5. Leave the default settings:
+   - **Build command:** *(leave empty)*
+   - **Publish directory:** `.` (root directory)
+6. Click **Deploy smart-fence**. Within 30 seconds, your PWA is live at `https://<site-name>.netlify.app`!
+7. Any future `git push` will automatically build and deploy new updates.
+
+#### Method 2: Instant Drag-and-Drop (Netlify Drop)
+1. Go to [Netlify Drop](https://app.netlify.com/drop).
+2. Drag and drop the `smart-fence` project folder directly into the browser upload box.
+3. Netlify will immediately publish your PWA with a free HTTPS URL.
+
+> [!TIP]
+> This repository already includes [`netlify.toml`](./netlify.toml) and [`_headers`](./_headers) pre-configured with security policies and service worker cache-busting headers so updates propagate instantly.
+
+### Option B: Free Hosting on GitHub Pages
+1. Push your repository to GitHub.
+2. Go to **Settings** $\rightarrow$ **Pages**.
+3. Under **Build and deployment**, set Source to **Deploy from a branch**, select `main` (or `master`), folder `/ (root)`, and click **Save**.
+4. Within 60 seconds, your site will be live at `https://<your-username>.github.io/smart-fence/` with free SSL.
 
 ### Option C: Local Testing via `localhost` (Desktop or USB Debugging)
 - To test immediately on your PC:
   ```bash
-  python -m http.server 8000
+  python serve_https.py
   ```
-- Open `http://localhost:8000` in Google Chrome. Since `localhost` is treated as a secure context, both the Camera and Web Bluetooth work out of the box!
-
-### Option D: Local HTTPS Server for Mobile Phones on Same Wi-Fi
-Run the included Python HTTPS script:
-```bash
-python serve_https.py
-```
-This generates a temporary SSL certificate on the fly and serves the app over `https://0.0.0.0:8443`.
+  Choose option `1` for HTTP `localhost:8000` (trusted local origin) or option `2` for HTTPS `8443`.
+- Open `http://localhost:8000` in Google Chrome. Both Camera and Web Bluetooth work without warnings.
 
 ---
 
@@ -171,10 +189,11 @@ This generates a temporary SSL certificate on the fly and serves the app over `h
 
 Follow this script during your school science exhibition to impress the evaluators:
 
-### Step 1: System Power-Up & Stand Mount
+### Step 1: System Power-Up & Interactive Demo Setup
 1. Power the ESP32 breadboard using a USB power bank. The onboard blue LED will flash rapidly (advertising mode), the laser lights remain OFF (safe boot state), and the relay is open.
-2. Mount your smartphone on the vertical stand facing the model perimeter gate.
-3. Open the FenceGuard PWA in Chrome on your phone.
+2. Open the FenceGuard PWA in Chrome on your phone.
+3. **Selfie Camera by Default:** The app automatically launches using the front-facing **Selfie Camera** (indicated by the cyan `SELFIE` lens badge in the top right control bar). This allows you to place the phone flat on your exhibition desk facing you and the judges for an effortless, hands-free demonstration!
+4. **Switching to Rear Perimeter Camera:** When mounting the phone on a real perimeter post, tap the camera flip button (**`SELFIE` $\rightarrow$ `REAR`**) to engage the high-resolution rear lens and unlock the night perimeter flashlight.
 
 ### Step 2: Establish Web Bluetooth Link
 1. Tap **BLE CONNECT** in the top navigation bar.

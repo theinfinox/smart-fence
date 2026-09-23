@@ -312,10 +312,12 @@
           </svg>
         </button>
 
-        <button id="btnSwitchCam" class="p-1.5 rounded-lg bg-black/70 backdrop-blur-md border border-gray-700 text-gray-300 hover:text-white hover:bg-gray-800 transition active:scale-95" title="Flip Camera">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <!-- Switch Camera Button with Active Lens Badge -->
+        <button id="btnSwitchCam" class="flex items-center space-x-1 px-2 py-1.5 rounded-lg bg-black/70 backdrop-blur-md border border-cyan-500/40 text-cyan-300 hover:text-white hover:bg-gray-800 transition active:scale-95" title="Switch Between Selfie and Rear Camera">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
           </svg>
+          <span id="camModeBadge" class="font-mono text-[9px] font-bold text-cyan-300">SELFIE</span>
         </button>
 
         <button id="btnPauseDetection" class="p-1.5 rounded-lg bg-black/70 backdrop-blur-md border border-gray-700 text-gray-300 hover:text-white hover:bg-gray-800 transition active:scale-95" title="Pause/Play Detection">
@@ -570,6 +572,7 @@
     const btnBleConnect = document.getElementById('btnBleConnect');
     const bleBtnText = document.getElementById('bleBtnText');
     const btnSwitchCam = document.getElementById('btnSwitchCam');
+    const camModeBadge = document.getElementById('camModeBadge');
     const btnPauseDetection = document.getElementById('btnPauseDetection');
     const btnTorchToggle = document.getElementById('btnTorchToggle');
     const iconPause = document.getElementById('iconPause');
@@ -598,7 +601,7 @@
     // State Variables
     let model = null;
     let isDetecting = true;
-    let currentFacingMode = 'environment';
+    let currentFacingMode = 'user'; // Default to selfie (front) camera as requested
     let currentStream = null;
     let isCameraActive = false;
     let lastFrameTimestamp = performance.now();
@@ -797,7 +800,10 @@
           cameraFallbackOverlay.classList.add('hidden');
           syncCanvasDimensions();
           resDisplay.textContent = `${webcam.videoWidth}x${webcam.videoHeight}`;
-          logTelemetry(`Camera streaming: ${webcam.videoWidth}x${webcam.videoHeight}`, 'success');
+          if (camModeBadge) {
+            camModeBadge.textContent = (currentFacingMode === 'user') ? 'SELFIE' : 'REAR';
+          }
+          logTelemetry(`Camera streaming (${currentFacingMode === 'user' ? 'Selfie' : 'Rear'}): ${webcam.videoWidth}x${webcam.videoHeight}`, 'success');
           checkTorchCapability();
           resolve();
         };
@@ -826,6 +832,11 @@
 
     async function checkTorchCapability() {
       if (!currentStream) return;
+      if (currentFacingMode === 'user') {
+        // Front/Selfie lenses do not support hardware torch
+        btnTorchToggle.classList.add('hidden');
+        return;
+      }
       const track = currentStream.getVideoTracks()[0];
       try {
         const capabilities = track.getCapabilities ? track.getCapabilities() : {};
@@ -858,8 +869,17 @@
     btnSwitchCam.addEventListener('click', async () => {
       isTorchOn = false;
       btnTorchToggle.classList.remove('text-amber-400', 'border-amber-400');
-      currentFacingMode = (currentFacingMode === 'environment') ? 'user' : 'environment';
-      await setupCamera();
+      const targetMode = (currentFacingMode === 'user') ? 'environment' : 'user';
+      logTelemetry(`Switching camera to ${targetMode === 'user' ? 'Selfie' : 'Rear'} lens...`, 'info');
+      const previousMode = currentFacingMode;
+      currentFacingMode = targetMode;
+      try {
+        await setupCamera();
+      } catch (err) {
+        logTelemetry(`Camera switch failed: ${err.message}. Reverting...`, 'warn');
+        currentFacingMode = previousMode;
+        await setupCamera();
+      }
     });
 
     btnPauseDetection.addEventListener('click', () => {
