@@ -18,6 +18,9 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
 
+  <!-- Standalone Local Production Stylesheet -->
+  <link rel="stylesheet" href="style.css">
+
   <!-- Core Self-Contained Stylesheet (Guarantees Instant 100% Styling Even If CDN is Delayed) -->
   <style>
     :root {
@@ -30,6 +33,38 @@
       --tripped-glow: rgba(239, 68, 68, 0.45);
       --cyber-cyan: #06b6d4;
     }
+
+    
+    /* Universal SVG Containment Guards */
+    svg {
+      display: inline-block;
+      vertical-align: middle;
+      flex-shrink: 0;
+      max-width: 100%;
+      height: auto;
+    }
+    svg.w-2, .w-2 { width: 0.5rem; }
+    svg.h-2, .h-2 { height: 0.5rem; }
+    svg.w-2\.5, .w-2\.5 { width: 0.625rem; }
+    svg.h-2\.5, .h-2\.5 { height: 0.625rem; }
+    svg.w-3, .w-3 { width: 0.75rem; }
+    svg.h-3, .h-3 { height: 0.75rem; }
+    svg.w-3\.5, .w-3\.5 { width: 0.875rem; }
+    svg.h-3\.5, .h-3\.5 { height: 0.875rem; }
+    svg.w-4, .w-4 { width: 1rem; }
+    svg.h-4, .h-4 { height: 1rem; }
+    svg.w-5, .w-5 { width: 1.25rem; }
+    svg.h-5, .h-5 { height: 1.25rem; }
+    svg.w-6, .w-6 { width: 1.5rem; }
+    svg.h-6, .h-6 { height: 1.5rem; }
+    svg.w-7, .w-7 { width: 1.75rem; }
+    svg.h-7, .h-7 { height: 1.75rem; }
+    svg.w-8, .w-8 { width: 2rem; }
+    svg.h-8, .h-8 { height: 2rem; }
+    svg.w-10, .w-10 { width: 2.5rem; }
+    svg.h-10, .h-10 { height: 2.5rem; }
+    svg.w-12, .w-12 { width: 3rem; }
+    svg.h-12, .h-12 { height: 3rem; }
 
     *, *::before, *::after {
       box-sizing: border-box;
@@ -153,23 +188,7 @@
     }
   </style>
 
-  <!-- Tailwind CSS via CDN (Optional Progressive Enhancement) -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    if (window.tailwind) {
-      tailwind.config = {
-        darkMode: 'class',
-        theme: {
-          extend: {
-            fontFamily: {
-              sans: ['Inter', 'sans-serif'],
-              mono: ['JetBrains Mono', 'monospace'],
-            }
-          }
-        }
-      };
-    }
-  </script>
+  <!-- Tailwind CSS replaced with 100% standalone local style.css -->
 
   <!-- TensorFlow.js and COCO-SSD -->
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.17.0/dist/tf.min.js"></script>
@@ -182,7 +201,7 @@
   <header class="sticky top-0 z-50 backdrop-blur-md bg-gray-950/80 border-b border-gray-800/80 px-4 py-3 flex items-center justify-between shadow-lg">
     <div class="flex items-center space-x-2.5">
       <div class="relative w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center p-1">
-        <svg class="w-5 h-5 text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <svg class="w-5 h-5 text-emerald-400" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
           <path d="M13 8l-3 4h4l-3 4" stroke="#ff0055" stroke-width="2.2"/>
         </svg>
@@ -203,7 +222,7 @@
     <div class="flex items-center space-x-1.5">
       <!-- Settings Calibration Drawer Toggle -->
       <button id="btnSettingsToggle" class="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 transition-colors border border-gray-700 active:scale-95" title="Calibrate Sensitivity & Hold Times">
-        <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg class="w-4 h-4 text-cyan-400" width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
         </svg>
@@ -211,10 +230,10 @@
 
       <!-- Audio Alert Toggle -->
       <button id="btnAudioMute" class="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 transition-colors border border-gray-700 active:scale-95" title="Toggle Alarm Sound">
-        <svg id="iconVolumeOn" class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg id="iconVolumeOn" class="w-4 h-4 text-cyan-400" width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
         </svg>
-        <svg id="iconVolumeMute" class="w-4 h-4 text-gray-500 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg id="iconVolumeMute" class="w-4 h-4 text-gray-500 hidden" width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
         </svg>
@@ -222,7 +241,7 @@
 
       <!-- Web Bluetooth Connect Button -->
       <button id="btnBleConnect" class="flex items-center space-x-1 px-2.5 py-1.5 rounded-lg bg-cyan-600/20 hover:bg-cyan-600/30 text-cyan-300 border border-cyan-500/50 text-xs font-semibold tracking-wide transition-all shadow-sm active:scale-95">
-        <svg id="bleIcon" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <svg id="bleIcon" class="w-4 h-4" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="m7 7 10 10-5 5V2l5 5L7 17"/>
         </svg>
         <span id="bleBtnText">BLE CONNECT</span>
@@ -240,10 +259,10 @@
       <div class="relative z-10 flex items-center justify-between">
         <div class="flex items-center space-x-3">
           <div id="stateIconBox" class="w-12 h-12 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center shadow-lg transition-colors">
-            <svg id="iconStateArmed" class="w-7 h-7 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg id="iconStateArmed" class="w-7 h-7 text-emerald-400" width="28" height="28" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M13 10V3L4 14h7v7l9-11h-7z" />
             </svg>
-            <svg id="iconStateTripped" class="w-7 h-7 text-red-500 hidden animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg id="iconStateTripped" class="w-7 h-7 text-red-500 hidden animate-bounce" width="28" height="28" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
             </svg>
           </div>
@@ -307,24 +326,24 @@
       <!-- Camera Control Overlay (Top-right) -->
       <div class="absolute top-2.5 right-2.5 z-30 flex space-x-1.5">
         <button id="btnTorchToggle" class="p-1.5 rounded-lg bg-black/70 backdrop-blur-md border border-gray-700 text-gray-300 hover:text-amber-400 hover:bg-gray-800 transition active:scale-95 hidden" title="Toggle Perimeter Flashlight">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg class="w-4 h-4" width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
           </svg>
         </button>
 
         <!-- Switch Camera Button with Active Lens Badge -->
         <button id="btnSwitchCam" class="flex items-center space-x-1 px-2 py-1.5 rounded-lg bg-black/70 backdrop-blur-md border border-cyan-500/40 text-cyan-300 hover:text-white hover:bg-gray-800 transition active:scale-95" title="Switch Between Selfie and Rear Camera">
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg class="w-3.5 h-3.5" width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
           </svg>
           <span id="camModeBadge" class="font-mono text-[9px] font-bold text-cyan-300">SELFIE</span>
         </button>
 
         <button id="btnPauseDetection" class="p-1.5 rounded-lg bg-black/70 backdrop-blur-md border border-gray-700 text-gray-300 hover:text-white hover:bg-gray-800 transition active:scale-95" title="Pause/Play Detection">
-          <svg id="iconPause" class="w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg id="iconPause" class="w-4 h-4 text-gray-300" width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
-          <svg id="iconPlay" class="w-4 h-4 text-emerald-400 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg id="iconPlay" class="w-4 h-4 text-emerald-400 hidden" width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
@@ -333,7 +352,7 @@
 
       <!-- Camera Offline / Permission Helper Overlay (Graceful Fallback) -->
       <div id="cameraFallbackOverlay" class="hidden absolute inset-0 z-30 bg-gray-950/85 flex flex-col items-center justify-center p-4 text-center">
-        <svg class="w-10 h-10 text-cyan-400 mb-2 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg class="w-10 h-10 text-cyan-400 mb-2 opacity-80" width="40" height="40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
         </svg>
         <div id="cameraFallbackTitle" class="text-sm font-bold text-gray-200 font-mono">Camera Standby / Permission Needed</div>
@@ -392,7 +411,7 @@
     <div class="bg-slate-900/70 border border-slate-800/80 rounded-xl p-2.5">
       <div class="flex items-center justify-between mb-2">
         <span class="text-[11px] font-semibold text-gray-300 flex items-center gap-1.5">
-          <svg class="w-3.5 h-3.5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg class="w-3.5 h-3.5 text-amber-400" width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
           </svg>
           Jury Exhibition Simulator (Virtual Props)
@@ -419,7 +438,7 @@
     <div class="bg-black/80 rounded-xl border border-gray-800/90 p-2.5 flex-1 flex flex-col min-h-[110px] max-h-[160px]">
       <div class="flex items-center justify-between pb-1.5 border-b border-gray-800 mb-1.5">
         <span class="text-[10px] font-mono text-cyan-400 flex items-center gap-1 font-bold">
-          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg class="w-3 h-3" width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
           </svg>
           SYSTEM TELEMETRY LOG
@@ -439,7 +458,7 @@
       <div>
         <div class="flex items-center justify-between pb-3 border-b border-gray-800 mb-4">
           <div class="flex items-center space-x-2">
-            <svg class="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-5 h-5 text-cyan-400" width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
             </svg>
             <h2 class="text-sm font-bold font-mono text-white">PERIMETER CALIBRATION</h2>

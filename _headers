@@ -13,3 +13,7 @@
 
 /icon.svg
   Content-Type: image/svg+xml
+
+/style.css
+  Content-Type: text/css; charset=utf-8
+  Cache-Control: public, max-age=0, must-revalidate

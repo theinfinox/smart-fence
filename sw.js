@@ -1,8 +1,9 @@
-// FenceGuard AI Service Worker v2.0
-const CACHE_NAME = 'fenceguard-v2.0';
+// FenceGuard AI Service Worker v2.1
+const CACHE_NAME = 'fenceguard-v2.1';
 const LOCAL_ASSETS = [
   './',
   './index.html',
+  './style.css',
   './manifest.json',
   './icon.svg'
 ];

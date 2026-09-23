@@ -29,3 +29,10 @@
   for = "/icon.svg"
   [headers.values]
     Content-Type = "image/svg+xml"
+
+# CSS Cache & MIME Type
+[[headers]]
+  for = "/style.css"
+  [headers.values]
+    Content-Type = "text/css; charset=utf-8"
+    Cache-Control = "public, max-age=0, must-revalidate"
