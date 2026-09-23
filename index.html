@@ -1,0 +1,1482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>FenceGuard AI - Smart Laser Fence Safety System</title>
+  
+  <!-- PWA Metadata -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#059669">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="icon" type="image/svg+xml" href="icon.svg">
+  <link rel="apple-touch-icon" href="icon.svg">
+
+  <!-- Google Fonts: Inter & JetBrains Mono for High-Tech HUD -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+
+  <!-- Tailwind CSS via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            fence: {
+              armed: '#10b981',
+              armedGlow: 'rgba(16, 185, 129, 0.35)',
+              tripped: '#ef4444',
+              trippedGlow: 'rgba(239, 68, 68, 0.45)',
+              laser: '#ff0055',
+              cyber: '#06b6d4',
+              dark: '#070d19',
+              card: '#0f172a',
+              cardBorder: '#1e293b'
+            }
+          },
+          animation: {
+            'pulse-fast': 'pulse 0.8s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+            'laser-scan': 'laserScan 2.5s ease-in-out infinite',
+            'glow-red': 'glowRed 1s infinite alternate',
+            'glow-green': 'glowGreen 1.8s infinite alternate',
+          },
+          keyframes: {
+            laserScan: {
+              '0%, 100%': { top: '5%', opacity: '0.8' },
+              '50%': { top: '95%', opacity: '1' }
+            },
+            glowRed: {
+              '0%': { boxShadow: '0 0 15px rgba(239, 68, 68, 0.4)' },
+              '100%': { boxShadow: '0 0 30px rgba(239, 68, 68, 0.85)' }
+            },
+            glowGreen: {
+              '0%': { boxShadow: '0 0 10px rgba(16, 185, 129, 0.3)' },
+              '100%': { boxShadow: '0 0 25px rgba(16, 185, 129, 0.7)' }
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- TensorFlow.js and COCO-SSD -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.17.0/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3"></script>
+
+  <style>
+    /* Custom HUD styling with 100dvh to eliminate mobile URL bar shift */
+    html, body {
+      height: 100%;
+      height: 100dvh;
+      overscroll-behavior-y: none;
+      background-color: #030712;
+      color: #f3f4f6;
+      font-family: 'Inter', sans-serif;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+    
+    .hud-border {
+      position: relative;
+    }
+    .hud-border::before {
+      content: '';
+      position: absolute;
+      top: -2px; left: -2px; width: 12px; height: 12px;
+      border-top: 2px solid #06b6d4;
+      border-left: 2px solid #06b6d4;
+    }
+    .hud-border::after {
+      content: '';
+      position: absolute;
+      bottom: -2px; right: -2px; width: 12px; height: 12px;
+      border-bottom: 2px solid #06b6d4;
+      border-right: 2px solid #06b6d4;
+    }
+
+    /* Video & Canvas layer stacking with 1:1 pixel alignment */
+    .viewport-container {
+      position: relative;
+      width: 100%;
+      height: 48vh;
+      min-height: 290px;
+      max-height: 440px;
+      border-radius: 1rem;
+      overflow: hidden;
+      background: #000;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.7);
+    }
+
+    #webcam {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform: scaleX(1);
+    }
+    #webcam.mirrored {
+      transform: scaleX(-1);
+    }
+
+    #canvasOverlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    /* Scanline overlay */
+    .scanlines {
+      background: linear-gradient(
+        rgba(18, 16, 16, 0) 50%, 
+        rgba(0, 0, 0, 0.25) 50%
+      ), linear-gradient(
+        90deg,
+        rgba(255, 0, 0, 0.03),
+        rgba(0, 255, 0, 0.01),
+        rgba(0, 0, 255, 0.03)
+      );
+      background-size: 100% 3px, 6px 100%;
+      pointer-events: none;
+    }
+
+    /* Range slider custom styling */
+    input[type=range] {
+      -webkit-appearance: none;
+      background: #1e293b;
+      height: 6px;
+      border-radius: 3px;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      height: 18px;
+      width: 18px;
+      border-radius: 50%;
+      background: #06b6d4;
+      cursor: pointer;
+      box-shadow: 0 0 6px #06b6d4;
+    }
+
+    /* Custom scrollbar for telemetry logs */
+    ::-webkit-scrollbar {
+      width: 4px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0b1120;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #1e293b;
+      border-radius: 2px;
+    }
+  </style>
+</head>
+
+<body class="flex flex-col min-h-screen bg-gradient-to-b from-gray-950 via-slate-900 to-black antialiased selection:bg-cyan-500 selection:text-black">
+
+  <!-- Header & Navigation Bar -->
+  <header class="sticky top-0 z-50 backdrop-blur-md bg-gray-950/80 border-b border-gray-800/80 px-4 py-3 flex items-center justify-between shadow-lg">
+    <div class="flex items-center space-x-2.5">
+      <div class="relative w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center p-1">
+        <svg class="w-5 h-5 text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          <path d="M13 8l-3 4h4l-3 4" stroke="#ff0055" stroke-width="2.2"/>
+        </svg>
+        <span id="headerStatusDot" class="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-500 rounded-full animate-ping"></span>
+      </div>
+      <div>
+        <h1 class="text-base font-extrabold tracking-wide text-white flex items-center gap-1.5">
+          FenceGuard <span class="text-xs px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-400 border border-cyan-500/40 font-mono font-bold">AI LASER</span>
+        </h1>
+        <p class="text-[10px] text-gray-400 font-mono flex items-center gap-1">
+          <span>Edge Vision</span> • <span>BLE NUS</span> • 
+          <span id="headerWakeLockTag" class="text-emerald-400 font-bold">STAND READY</span>
+        </p>
+      </div>
+    </div>
+
+    <!-- Quick Action Controls -->
+    <div class="flex items-center space-x-1.5">
+      <!-- Settings Calibration Drawer Toggle -->
+      <button id="btnSettingsToggle" class="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 transition-colors border border-gray-700 active:scale-95" title="Calibrate Sensitivity & Hold Times">
+        <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+        </svg>
+      </button>
+
+      <!-- Audio Alert Toggle -->
+      <button id="btnAudioMute" class="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 transition-colors border border-gray-700 active:scale-95" title="Toggle Alarm Sound">
+        <svg id="iconVolumeOn" class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+        </svg>
+        <svg id="iconVolumeMute" class="w-4 h-4 text-gray-500 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
+        </svg>
+      </button>
+
+      <!-- Web Bluetooth Connect Button -->
+      <button id="btnBleConnect" class="flex items-center space-x-1 px-2.5 py-1.5 rounded-lg bg-cyan-600/20 hover:bg-cyan-600/30 text-cyan-300 border border-cyan-500/50 text-xs font-semibold tracking-wide transition-all shadow-sm active:scale-95">
+        <svg id="bleIcon" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="m7 7 10 10-5 5V2l5 5L7 17"/>
+        </svg>
+        <span id="bleBtnText">BLE CONNECT</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Content Container -->
+  <main class="flex-1 px-3 py-2.5 max-w-lg mx-auto w-full flex flex-col space-y-3">
+    
+    <!-- 1. Primary Dynamic Safety HUD Banner -->
+    <div id="fenceStateBanner" class="p-3.5 rounded-xl border transition-all duration-300 relative overflow-hidden bg-gradient-to-r from-emerald-950/60 via-slate-900/80 to-emerald-950/60 border-emerald-500/50 animate-glow-green">
+      <!-- Animated Background Pulse -->
+      <div id="stateBgGlow" class="absolute inset-0 bg-emerald-500/10 pointer-events-none transition-colors duration-300"></div>
+
+      <div class="relative z-10 flex items-center justify-between">
+        <div class="flex items-center space-x-3">
+          <div id="stateIconBox" class="w-12 h-12 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center shadow-lg transition-colors">
+            <svg id="iconStateArmed" class="w-7 h-7 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+            <svg id="iconStateTripped" class="w-7 h-7 text-red-500 hidden animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
+          <div>
+            <div class="flex items-center space-x-2">
+              <span class="text-[10px] font-mono uppercase tracking-wider text-gray-400">ACTUATION STATUS</span>
+              <span id="safetyHoldTimerBadge" class="hidden text-[10px] font-mono px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40">HOLD: 3.0s</span>
+            </div>
+            <div id="stateTitle" class="text-xl font-black tracking-wider text-emerald-400 font-mono">
+              ARMED / LASER ACTIVE
+            </div>
+            <p id="stateSubtitle" class="text-xs text-gray-300 font-medium">Perimeter energized • Animals deterred</p>
+          </div>
+        </div>
+
+        <!-- Relay Simulation Indicator -->
+        <div class="text-right">
+          <span class="text-[10px] font-mono text-gray-400 block">5V RELAY</span>
+          <span id="relayStatusTag" class="inline-block mt-0.5 text-xs font-mono font-bold px-2 py-0.5 rounded bg-emerald-500/30 text-emerald-300 border border-emerald-500/50">
+            CLOSED (ON)
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. AI Vision Viewport & Live Bounding Box Canvas -->
+    <div class="viewport-container border border-slate-800">
+      <!-- Live Video Feed -->
+      <video id="webcam" autoplay playsinline muted></video>
+
+      <!-- Drawing Canvas for Detection Boxes (1:1 aligned to displayed pixels) -->
+      <canvas id="canvasOverlay"></canvas>
+
+      <!-- Retro Laser Scan Line HUD effect -->
+      <div id="laserScanLine" class="absolute w-full h-0.5 bg-cyan-400 shadow-[0_0_10px_#06b6d4] animate-laser-scan pointer-events-none z-20 opacity-70"></div>
+      
+      <!-- Scanlines effect -->
+      <div class="scanlines absolute inset-0 z-20"></div>
+
+      <!-- Live HUD Overlays (Top-left info badge) -->
+      <div class="absolute top-2.5 left-2.5 z-30 flex flex-col space-y-1">
+        <div class="bg-black/75 backdrop-blur-md px-2.5 py-1 rounded-md border border-cyan-500/30 font-mono text-[11px] text-cyan-300 flex items-center space-x-1.5 shadow-md">
+          <span class="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
+          <span id="fpsDisplay">FPS: --</span>
+          <span class="text-gray-500">|</span>
+          <span id="resDisplay">720p</span>
+        </div>
+        
+        <!-- Live Subject Counters & Priority Warning Badge -->
+        <div class="flex space-x-1 font-mono text-[10px]">
+          <span id="hudHumanCount" class="bg-black/70 backdrop-blur-md px-2 py-0.5 rounded border border-emerald-500/40 text-emerald-400 font-bold">
+            HUMAN: 0
+          </span>
+          <span id="hudAnimalCount" class="bg-black/70 backdrop-blur-md px-2 py-0.5 rounded border border-amber-500/40 text-amber-400 font-bold">
+            ANIMAL: 0
+          </span>
+          <span id="wakeLockPill" class="bg-black/70 backdrop-blur-md px-1.5 py-0.5 rounded border border-cyan-500/30 text-cyan-300">
+            WAKE: ON
+          </span>
+        </div>
+      </div>
+
+      <!-- Camera Control Overlay (Top-right) -->
+      <div class="absolute top-2.5 right-2.5 z-30 flex space-x-1.5">
+        <!-- Torch / Flashlight Toggle (for low-light/night demos) -->
+        <button id="btnTorchToggle" class="p-1.5 rounded-lg bg-black/70 backdrop-blur-md border border-gray-700 text-gray-300 hover:text-amber-400 hover:bg-gray-800 transition active:scale-95 hidden" title="Toggle Perimeter Flashlight">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+          </svg>
+        </button>
+
+        <!-- Switch Camera Button -->
+        <button id="btnSwitchCam" class="p-1.5 rounded-lg bg-black/70 backdrop-blur-md border border-gray-700 text-gray-300 hover:text-white hover:bg-gray-800 transition active:scale-95" title="Flip Camera">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+        </button>
+
+        <!-- Pause / Play Detection Button -->
+        <button id="btnPauseDetection" class="p-1.5 rounded-lg bg-black/70 backdrop-blur-md border border-gray-700 text-gray-300 hover:text-white hover:bg-gray-800 transition active:scale-95" title="Pause/Play Detection">
+          <svg id="iconPause" class="w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <svg id="iconPlay" class="w-4 h-4 text-emerald-400 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </button>
+      </div>
+
+      <!-- Loading / Error Overlay -->
+      <div id="visionLoadingOverlay" class="absolute inset-0 z-40 bg-gray-950/90 flex flex-col items-center justify-center p-6 text-center">
+        <div class="w-12 h-12 border-3 border-cyan-500 border-t-transparent rounded-full animate-spin mb-3"></div>
+        <div id="modelLoadingText" class="text-sm font-semibold text-cyan-300 font-mono">Initializing Neural Vision Engine...</div>
+        <div class="text-xs text-gray-400 mt-1">Downloading COCO-SSD MobileNetV2 Weights</div>
+      </div>
+    </div>
+
+    <!-- 3. Telemetry, BLE Status & Hardware Controls -->
+    <div class="grid grid-cols-2 gap-2.5">
+      
+      <!-- BLE Connection Status Card -->
+      <div class="bg-gray-900/90 rounded-xl p-2.5 border border-gray-800 flex flex-col justify-between">
+        <div class="flex items-center justify-between mb-1">
+          <span class="text-[11px] font-mono text-gray-400 flex items-center gap-1">
+            <span id="bleIndicator" class="w-2 h-2 rounded-full bg-red-500"></span>
+            BLE LINK
+          </span>
+          <span id="bleDeviceNameTag" class="text-[10px] font-mono text-gray-500 truncate max-w-[80px]">No Device</span>
+        </div>
+        <div class="text-xs font-mono font-bold text-gray-200" id="bleStatusLabel">
+          DISCONNECTED
+        </div>
+        <div class="mt-1.5 flex items-center justify-between text-[10px] font-mono text-gray-400">
+          <span>TX CMD:</span>
+          <span id="lastTxCmd" class="text-cyan-400 font-semibold">--</span>
+        </div>
+      </div>
+
+      <!-- AI Inference Confidence Card -->
+      <div class="bg-gray-900/90 rounded-xl p-2.5 border border-gray-800 flex flex-col justify-between">
+        <div class="flex items-center justify-between mb-1">
+          <span class="text-[11px] font-mono text-gray-400">AI DETECTOR</span>
+          <span id="modelLatency" class="text-[10px] font-mono text-cyan-400">0 ms</span>
+        </div>
+        <div class="text-xs font-mono font-bold text-gray-200" id="detectionClassTag">
+          MONITORING
+        </div>
+        <div class="mt-1.5 flex items-center justify-between text-[10px] font-mono text-gray-400">
+          <span>MAX CONF:</span>
+          <span id="maxConfVal" class="text-emerald-400 font-semibold">0%</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4. Interactive Exhibition Demo Simulation Bar -->
+    <div class="bg-slate-900/70 border border-slate-800/80 rounded-xl p-2.5">
+      <div class="flex items-center justify-between mb-2">
+        <span class="text-[11px] font-semibold text-gray-300 flex items-center gap-1.5">
+          <svg class="w-3.5 h-3.5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+          </svg>
+          Jury Exhibition Simulator (Virtual Props)
+        </span>
+        <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-gray-800 text-gray-400">Demo Testing</span>
+      </div>
+      <div class="grid grid-cols-3 gap-1.5 font-mono text-[11px]">
+        <button id="btnSimHuman" class="py-1.5 px-2 rounded-lg bg-red-950/50 hover:bg-red-900/50 border border-red-700/60 text-red-300 text-center transition active:scale-95 flex flex-col items-center">
+          <span class="font-bold">Simulate Human</span>
+          <span class="text-[9px] text-red-400">(Triggers TRIP)</span>
+        </button>
+        <button id="btnSimAnimal" class="py-1.5 px-2 rounded-lg bg-amber-950/50 hover:bg-amber-900/50 border border-amber-700/60 text-amber-300 text-center transition active:scale-95 flex flex-col items-center">
+          <span class="font-bold">Simulate Animal</span>
+          <span class="text-[9px] text-amber-400">(Keeps ARMED)</span>
+        </button>
+        <button id="btnSimClear" class="py-1.5 px-2 rounded-lg bg-emerald-950/50 hover:bg-emerald-900/50 border border-emerald-700/60 text-emerald-300 text-center transition active:scale-95 flex flex-col items-center">
+          <span class="font-bold">Clear Scene</span>
+          <span class="text-[9px] text-emerald-400">(Reset ARMED)</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- 5. Real-Time Telemetry & BLE Serial Terminal Log -->
+    <div class="bg-black/80 rounded-xl border border-gray-800/90 p-2.5 flex-1 flex flex-col min-h-[110px] max-h-[160px]">
+      <div class="flex items-center justify-between pb-1.5 border-b border-gray-800 mb-1.5">
+        <span class="text-[10px] font-mono text-cyan-400 flex items-center gap-1 font-bold">
+          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+          SYSTEM TELEMETRY LOG
+        </span>
+        <button id="btnClearLog" class="text-[9px] font-mono text-gray-500 hover:text-gray-300 transition">CLEAR</button>
+      </div>
+      <div id="telemetryLog" class="flex-1 overflow-y-auto font-mono text-[10px] text-gray-300 space-y-1 pr-1">
+        <div class="text-gray-500">[00:00:00] System booted. Initializing modules...</div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Slide-Out Perimeter Calibration Drawer (Modal) -->
+  <div id="calibrationDrawer" class="hidden fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex justify-end transition-opacity">
+    <div class="w-full max-w-xs bg-gray-900 border-l border-gray-800 h-full p-4 flex flex-col justify-between shadow-2xl overflow-y-auto">
+      <div>
+        <div class="flex items-center justify-between pb-3 border-b border-gray-800 mb-4">
+          <div class="flex items-center space-x-2">
+            <svg class="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+            </svg>
+            <h2 class="text-sm font-bold font-mono text-white">PERIMETER CALIBRATION</h2>
+          </div>
+          <button id="btnCloseDrawer" class="text-gray-400 hover:text-white p-1 rounded-md">✕</button>
+        </div>
+
+        <div class="space-y-4 text-xs font-mono">
+          <!-- Human Confidence Threshold -->
+          <div>
+            <div class="flex justify-between mb-1">
+              <span class="text-gray-300">Human Threshold:</span>
+              <span id="lblHumanThresh" class="text-red-400 font-bold">55%</span>
+            </div>
+            <input type="range" id="sliderHumanThresh" min="35" max="85" value="55" class="w-full">
+            <span class="text-[9px] text-gray-500 block mt-0.5">Higher = Fewer false alarms</span>
+          </div>
+
+          <!-- Animal Confidence Threshold -->
+          <div>
+            <div class="flex justify-between mb-1">
+              <span class="text-gray-300">Animal Threshold:</span>
+              <span id="lblAnimalThresh" class="text-amber-400 font-bold">50%</span>
+            </div>
+            <input type="range" id="sliderAnimalThresh" min="30" max="80" value="50" class="w-full">
+            <span class="text-[9px] text-gray-500 block mt-0.5">Wildlife detection sensitivity</span>
+          </div>
+
+          <!-- Safety Hold Duration -->
+          <div>
+            <div class="flex justify-between mb-1">
+              <span class="text-gray-300">Safety Hold Buffer:</span>
+              <span id="lblHoldDuration" class="text-cyan-400 font-bold">3.0s</span>
+            </div>
+            <input type="range" id="sliderHoldDuration" min="10" max="60" value="30" class="w-full">
+            <span class="text-[9px] text-gray-500 block mt-0.5">Delay before re-arming fence</span>
+          </div>
+
+          <!-- Inference FPS Throttle (Battery Saver) -->
+          <div>
+            <div class="flex justify-between mb-1">
+              <span class="text-gray-300">Inference Target:</span>
+              <span id="lblTargetFps" class="text-emerald-400 font-bold">15 FPS (Eco)</span>
+            </div>
+            <select id="selectFpsTarget" class="w-full bg-gray-800 border border-gray-700 rounded p-1.5 text-xs text-gray-200">
+              <option value="15" selected>15 FPS (Exhibition Eco - Prevents Heat)</option>
+              <option value="25">25 FPS (Smooth Balanced)</option>
+              <option value="60">Max Unconstrained (High Battery)</option>
+            </select>
+          </div>
+
+          <!-- Screen Wake Lock Toggle -->
+          <div class="pt-2 border-t border-gray-800">
+            <label class="flex items-center justify-between cursor-pointer">
+              <span class="text-gray-300">Screen Wake Lock:</span>
+              <input type="checkbox" id="chkAutoWakeLock" checked class="w-4 h-4 accent-cyan-500 rounded">
+            </label>
+            <span class="text-[9px] text-gray-500 block mt-0.5">Prevents phone sleep on stand</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="pt-3 border-t border-gray-800 flex space-x-2 font-mono text-xs">
+        <button id="btnResetDefaults" class="flex-1 py-1.5 rounded bg-gray-800 text-gray-300 hover:bg-gray-700">Defaults</button>
+        <button id="btnSaveDrawer" class="flex-1 py-1.5 rounded bg-cyan-600 text-white font-bold hover:bg-cyan-500">Apply</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PWA Install Banner Modal (if not installed) -->
+  <div id="pwaInstallBanner" class="hidden fixed bottom-4 left-4 right-4 max-w-sm mx-auto bg-gray-900/95 backdrop-blur-lg border border-cyan-500/50 rounded-xl p-3 shadow-2xl z-50 flex items-center justify-between animate-bounce">
+    <div class="flex items-center space-x-2.5">
+      <img src="icon.svg" class="w-8 h-8 rounded-lg" alt="FenceGuard">
+      <div>
+        <div class="text-xs font-bold text-white">Install FenceGuard PWA</div>
+        <div class="text-[10px] text-gray-400">Fast fullscreen mobile operation</div>
+      </div>
+    </div>
+    <div class="flex space-x-1.5">
+      <button id="btnPwaDismiss" class="px-2 py-1 text-[10px] text-gray-400 hover:text-white">Later</button>
+      <button id="btnPwaInstall" class="px-2.5 py-1 text-[10px] font-bold bg-cyan-500 text-black rounded-lg">Install</button>
+    </div>
+  </div>
+
+  <!-- JavaScript Implementation -->
+  <script>
+    /**
+     * FenceGuard AI Vision & Web Bluetooth Engine
+     * Nordic UART Service (NUS) Implementation:
+     * - NUS Service UUID: 6e400001-b5a3-f393-e0a9-e50e24dcca9e
+     * - RX Char (Write to ESP32): 6e400002-b5a3-f393-e0a9-e50e24dcca9e
+     * - TX Char (Notify from ESP32): 6e400003-b5a3-f393-e0a9-e50e24dcca9e
+     */
+
+    const NUS_SERVICE_UUID = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
+    const NUS_RX_UUID      = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';
+    const NUS_TX_UUID      = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
+
+    // Target animal classes recognized by COCO-SSD
+    const ANIMAL_CLASSES = new Set([
+      'bird', 'cat', 'dog', 'horse', 'sheep', 'cow', 
+      'elephant', 'bear', 'zebra', 'giraffe'
+    ]);
+
+    // Safety Thresholds (Configurable via Settings Drawer)
+    let humanConfidenceThreshold = 0.55;
+    let animalConfidenceThreshold = 0.50;
+    let safetyHoldDurationMs = 3000; // Hold SAFE TRIP for 3.0s after human leaves
+    let targetInferenceFps = 15;      // Target FPS pacing to prevent thermal throttling
+    const HEARTBEAT_INTERVAL_MS = 2500;   // Keepalive ping to ESP32
+
+    // DOM Elements
+    const webcam = document.getElementById('webcam');
+    const canvasOverlay = document.getElementById('canvasOverlay');
+    const ctx = canvasOverlay.getContext('2d');
+    const viewportContainer = document.querySelector('.viewport-container');
+    const visionLoadingOverlay = document.getElementById('visionLoadingOverlay');
+    const modelLoadingText = document.getElementById('modelLoadingText');
+    const fenceStateBanner = document.getElementById('fenceStateBanner');
+    const stateBgGlow = document.getElementById('stateBgGlow');
+    const stateIconBox = document.getElementById('stateIconBox');
+    const iconStateArmed = document.getElementById('iconStateArmed');
+    const iconStateTripped = document.getElementById('iconStateTripped');
+    const stateTitle = document.getElementById('stateTitle');
+    const stateSubtitle = document.getElementById('stateSubtitle');
+    const relayStatusTag = document.getElementById('relayStatusTag');
+    const safetyHoldTimerBadge = document.getElementById('safetyHoldTimerBadge');
+    const fpsDisplay = document.getElementById('fpsDisplay');
+    const resDisplay = document.getElementById('resDisplay');
+    const hudHumanCount = document.getElementById('hudHumanCount');
+    const hudAnimalCount = document.getElementById('hudAnimalCount');
+    const wakeLockPill = document.getElementById('wakeLockPill');
+    const detectionClassTag = document.getElementById('detectionClassTag');
+    const modelLatency = document.getElementById('modelLatency');
+    const maxConfVal = document.getElementById('maxConfVal');
+    const bleStatusLabel = document.getElementById('bleStatusLabel');
+    const bleIndicator = document.getElementById('bleIndicator');
+    const bleDeviceNameTag = document.getElementById('bleDeviceNameTag');
+    const lastTxCmd = document.getElementById('lastTxCmd');
+    const telemetryLog = document.getElementById('telemetryLog');
+    const btnBleConnect = document.getElementById('btnBleConnect');
+    const bleBtnText = document.getElementById('bleBtnText');
+    const btnSwitchCam = document.getElementById('btnSwitchCam');
+    const btnPauseDetection = document.getElementById('btnPauseDetection');
+    const btnTorchToggle = document.getElementById('btnTorchToggle');
+    const iconPause = document.getElementById('iconPause');
+    const iconPlay = document.getElementById('iconPlay');
+    const btnAudioMute = document.getElementById('btnAudioMute');
+    const iconVolumeOn = document.getElementById('iconVolumeOn');
+    const iconVolumeMute = document.getElementById('iconVolumeMute');
+    const headerStatusDot = document.getElementById('headerStatusDot');
+
+    // Calibration Drawer Elements
+    const btnSettingsToggle = document.getElementById('btnSettingsToggle');
+    const calibrationDrawer = document.getElementById('calibrationDrawer');
+    const btnCloseDrawer = document.getElementById('btnCloseDrawer');
+    const btnSaveDrawer = document.getElementById('btnSaveDrawer');
+    const btnResetDefaults = document.getElementById('btnResetDefaults');
+    const sliderHumanThresh = document.getElementById('sliderHumanThresh');
+    const lblHumanThresh = document.getElementById('lblHumanThresh');
+    const sliderAnimalThresh = document.getElementById('sliderAnimalThresh');
+    const lblAnimalThresh = document.getElementById('lblAnimalThresh');
+    const sliderHoldDuration = document.getElementById('sliderHoldDuration');
+    const lblHoldDuration = document.getElementById('lblHoldDuration');
+    const selectFpsTarget = document.getElementById('selectFpsTarget');
+    const lblTargetFps = document.getElementById('lblTargetFps');
+    const chkAutoWakeLock = document.getElementById('chkAutoWakeLock');
+
+    // State Variables
+    let model = null;
+    let isDetecting = true;
+    let currentFacingMode = 'environment'; // default to back camera
+    let currentStream = null;
+    let lastFrameTimestamp = performance.now();
+    let lastInferenceTimestamp = 0;
+    let frameCount = 0;
+    let currentFps = 0;
+    let isTorchOn = false;
+
+    // Screen Wake Lock API
+    let wakeLockSentinel = null;
+
+    // Safety State Machine Variables
+    let currentFenceState = 'ARMED';
+    let lastHumanDetectedTimestamp = 0;
+
+    // Web Bluetooth Variables
+    let bleDevice = null;
+    let bleServer = null;
+    let rxCharacteristic = null;
+    let txCharacteristic = null;
+    let lastSentCommand = null;
+    let heartbeatTimer = null;
+    let isBleConnecting = false;
+
+    // Audio Alert Synthesizer (Web Audio API)
+    let audioCtx = null;
+    let isAudioMuted = false;
+
+    // Simulated Objects for Exhibition Testing
+    let simulationOverride = null; // null | 'HUMAN' | 'ANIMAL' | 'CLEAR'
+    let simulationTimeout = null;
+
+    // PWA Install Event Handler
+    let deferredPrompt = null;
+
+    // ----------------------------------------------------
+    // Logger Utility
+    // ----------------------------------------------------
+    function logTelemetry(msg, type = 'info') {
+      const now = new Date();
+      const timeStr = now.toTimeString().split(' ')[0] + '.' + String(now.getMilliseconds()).padStart(3, '0');
+      const row = document.createElement('div');
+      
+      let colorClass = 'text-gray-300';
+      if (type === 'warn') colorClass = 'text-amber-400';
+      if (type === 'danger') colorClass = 'text-red-400 font-semibold';
+      if (type === 'success') colorClass = 'text-emerald-400 font-semibold';
+      if (type === 'ble') colorClass = 'text-cyan-400';
+
+      row.className = `${colorClass} leading-tight`;
+      row.innerHTML = `<span class="text-gray-500">[${timeStr}]</span> ${msg}`;
+      
+      telemetryLog.appendChild(row);
+      telemetryLog.scrollTop = telemetryLog.scrollHeight;
+    }
+
+    document.getElementById('btnClearLog').addEventListener('click', () => {
+      telemetryLog.innerHTML = '';
+      logTelemetry('Log cleared by user.', 'info');
+    });
+
+    // ----------------------------------------------------
+    // Screen Wake Lock API (Keeps Display On During Demo)
+    // ----------------------------------------------------
+    async function requestWakeLock() {
+      if (!chkAutoWakeLock.checked) return;
+      try {
+        if ('wakeLock' in navigator) {
+          wakeLockSentinel = await navigator.wakeLock.request('screen');
+          wakeLockSentinel.addEventListener('release', () => {
+            wakeLockPill.textContent = 'WAKE: OFF';
+            wakeLockPill.className = 'bg-black/70 backdrop-blur-md px-1.5 py-0.5 rounded border border-gray-700 text-gray-500';
+          });
+          wakeLockPill.textContent = 'WAKE: ON';
+          wakeLockPill.className = 'bg-black/70 backdrop-blur-md px-1.5 py-0.5 rounded border border-cyan-500/40 text-cyan-300 font-bold';
+          logTelemetry('Screen Wake Lock active (stand mode ready)', 'success');
+        } else {
+          wakeLockPill.textContent = 'WAKE: N/A';
+        }
+      } catch (err) {
+        wakeLockPill.textContent = 'WAKE: OFF';
+        console.warn('Wake Lock request:', err);
+      }
+    }
+
+    // Re-acquire Wake Lock and re-sync BLE heartbeat on visibility change
+    document.addEventListener('visibilitychange', async () => {
+      if (document.visibilityState === 'visible') {
+        await requestWakeLock();
+        if (bleServer && bleServer.connected) {
+          sendBleCommand('PING\n', true);
+        }
+      }
+    });
+
+    // ----------------------------------------------------
+    // Web Audio Synthesizer (Phone Siren / Hazard Beep)
+    // ----------------------------------------------------
+    function initAudio() {
+      if (!audioCtx) {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (AudioContext) {
+          audioCtx = new AudioContext();
+        }
+      }
+      if (audioCtx && audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+    }
+
+    // Initialize audio on any first user tap anywhere
+    document.addEventListener('click', initAudio, { once: true });
+    document.addEventListener('touchstart', initAudio, { once: true });
+
+    function playHazardAlertSound() {
+      if (isAudioMuted || !audioCtx) return;
+      try {
+        initAudio();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sawtooth';
+        
+        // Two-tone warning siren (880Hz to 440Hz sweep)
+        const now = audioCtx.currentTime;
+        osc.frequency.setValueAtTime(880, now);
+        osc.frequency.exponentialRampToValueAtTime(440, now + 0.25);
+
+        gain.gain.setValueAtTime(0.35, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.28);
+
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        osc.start(now);
+        osc.stop(now + 0.3);
+      } catch (err) {
+        console.warn('Audio alert error:', err);
+      }
+    }
+
+    btnAudioMute.addEventListener('click', () => {
+      initAudio();
+      isAudioMuted = !isAudioMuted;
+      if (isAudioMuted) {
+        iconVolumeOn.classList.add('hidden');
+        iconVolumeMute.classList.remove('hidden');
+        logTelemetry('Audio alerts MUTED', 'warn');
+      } else {
+        iconVolumeOn.classList.remove('hidden');
+        iconVolumeMute.classList.add('hidden');
+        logTelemetry('Audio alerts ENABLED', 'info');
+      }
+    });
+
+    // ----------------------------------------------------
+    // Video Stream, Camera Control & Torch Toggle
+    // ----------------------------------------------------
+    async function setupCamera() {
+      try {
+        if (currentStream) {
+          currentStream.getTracks().forEach(track => track.stop());
+        }
+
+        const constraints = {
+          audio: false,
+          video: {
+            facingMode: { ideal: currentFacingMode },
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          }
+        };
+
+        logTelemetry(`Requesting camera feed (${currentFacingMode})...`, 'info');
+        currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+        webcam.srcObject = currentStream;
+
+        if (currentFacingMode === 'user') {
+          webcam.classList.add('mirrored');
+        } else {
+          webcam.classList.remove('mirrored');
+        }
+
+        return new Promise((resolve) => {
+          webcam.onloadedmetadata = () => {
+            // Update canvas internal buffer to match container resolution for 1:1 pixel rendering
+            syncCanvasDimensions();
+            resDisplay.textContent = `${webcam.videoWidth}x${webcam.videoHeight}`;
+            logTelemetry(`Camera active: ${webcam.videoWidth}x${webcam.videoHeight}`, 'success');
+            
+            // Check torch / flashlight support
+            checkTorchCapability();
+            resolve();
+          };
+        });
+      } catch (err) {
+        logTelemetry(`Camera Access Error: ${err.message}`, 'danger');
+        alert(`Camera error: ${err.name}. Please ensure camera permissions are allowed.`);
+        throw err;
+      }
+    }
+
+    function syncCanvasDimensions() {
+      // Set canvas buffer width/height to match container client dimensions for 1:1 alignment
+      const rect = viewportContainer.getBoundingClientRect();
+      canvasOverlay.width = rect.width;
+      canvasOverlay.height = rect.height;
+    }
+    window.addEventListener('resize', syncCanvasDimensions);
+
+    async function checkTorchCapability() {
+      if (!currentStream) return;
+      const track = currentStream.getVideoTracks()[0];
+      try {
+        const capabilities = track.getCapabilities ? track.getCapabilities() : {};
+        if (capabilities.torch) {
+          btnTorchToggle.classList.remove('hidden');
+          logTelemetry('Perimeter Flashlight supported by hardware', 'info');
+        } else {
+          btnTorchToggle.classList.add('hidden');
+        }
+      } catch (e) {
+        btnTorchToggle.classList.add('hidden');
+      }
+    }
+
+    btnTorchToggle.addEventListener('click', async () => {
+      if (!currentStream) return;
+      const track = currentStream.getVideoTracks()[0];
+      try {
+        isTorchOn = !isTorchOn;
+        await track.applyConstraints({
+          advanced: [{ torch: isTorchOn }]
+        });
+        btnTorchToggle.classList.toggle('text-amber-400', isTorchOn);
+        btnTorchToggle.classList.toggle('border-amber-400', isTorchOn);
+        logTelemetry(`Perimeter Flashlight turned ${isTorchOn ? 'ON' : 'OFF'}`, 'info');
+      } catch (err) {
+        logTelemetry(`Flashlight error: ${err.message}`, 'warn');
+      }
+    });
+
+    btnSwitchCam.addEventListener('click', async () => {
+      isTorchOn = false;
+      btnTorchToggle.classList.remove('text-amber-400', 'border-amber-400');
+      currentFacingMode = (currentFacingMode === 'environment') ? 'user' : 'environment';
+      await setupCamera();
+    });
+
+    btnPauseDetection.addEventListener('click', () => {
+      isDetecting = !isDetecting;
+      if (isDetecting) {
+        iconPause.classList.remove('hidden');
+        iconPlay.classList.add('hidden');
+        logTelemetry('Vision detection RESUMED', 'info');
+        runInferenceLoop();
+      } else {
+        iconPause.classList.add('hidden');
+        iconPlay.classList.remove('hidden');
+        ctx.clearRect(0, 0, canvasOverlay.width, canvasOverlay.height);
+        fpsDisplay.textContent = 'PAUSED';
+        logTelemetry('Vision detection PAUSED', 'warn');
+      }
+    });
+
+    // ----------------------------------------------------
+    // Settings Calibration Drawer
+    // ----------------------------------------------------
+    btnSettingsToggle.addEventListener('click', () => {
+      calibrationDrawer.classList.remove('hidden');
+    });
+
+    btnCloseDrawer.addEventListener('click', () => {
+      calibrationDrawer.classList.add('hidden');
+    });
+
+    sliderHumanThresh.addEventListener('input', (e) => {
+      lblHumanThresh.textContent = `${e.target.value}%`;
+    });
+
+    sliderAnimalThresh.addEventListener('input', (e) => {
+      lblAnimalThresh.textContent = `${e.target.value}%`;
+    });
+
+    sliderHoldDuration.addEventListener('input', (e) => {
+      lblHoldDuration.textContent = `${(e.target.value / 10).toFixed(1)}s`;
+    });
+
+    selectFpsTarget.addEventListener('change', (e) => {
+      lblTargetFps.textContent = `${e.target.value} FPS`;
+    });
+
+    btnSaveDrawer.addEventListener('click', () => {
+      humanConfidenceThreshold = parseInt(sliderHumanThresh.value, 10) / 100;
+      animalConfidenceThreshold = parseInt(sliderAnimalThresh.value, 10) / 100;
+      safetyHoldDurationMs = parseInt(sliderHoldDuration.value, 10) * 100;
+      targetInferenceFps = parseInt(selectFpsTarget.value, 10);
+      calibrationDrawer.classList.add('hidden');
+      logTelemetry(`Calibrated: Human >= ${sliderHumanThresh.value}%, Animal >= ${sliderAnimalThresh.value}%, Hold = ${(safetyHoldDurationMs / 1000).toFixed(1)}s`, 'success');
+    });
+
+    btnResetDefaults.addEventListener('click', () => {
+      sliderHumanThresh.value = 55;
+      lblHumanThresh.textContent = '55%';
+      sliderAnimalThresh.value = 50;
+      lblAnimalThresh.textContent = '50%';
+      sliderHoldDuration.value = 30;
+      lblHoldDuration.textContent = '3.0s';
+      selectFpsTarget.value = "15";
+      lblTargetFps.textContent = '15 FPS (Eco)';
+      chkAutoWakeLock.checked = true;
+    });
+
+    // ----------------------------------------------------
+    // TensorFlow.js & COCO-SSD Model Initialization
+    // ----------------------------------------------------
+    async function loadModel() {
+      try {
+        modelLoadingText.textContent = 'Loading TensorFlow Backend (WebGL)...';
+        await tf.ready();
+        logTelemetry(`TF.js Engine: ${tf.getBackend().toUpperCase()}`, 'info');
+
+        modelLoadingText.textContent = 'Loading COCO-SSD MobileNetV2 Model...';
+        model = await cocoSsd.load({ base: 'mobilenet_v2' });
+        
+        visionLoadingOverlay.classList.add('hidden');
+        logTelemetry('AI Vision Engine loaded successfully!', 'success');
+      } catch (err) {
+        modelLoadingText.textContent = `Model Load Failed: ${err.message}`;
+        logTelemetry(`Model Init Failed: ${err.message}`, 'danger');
+      }
+    }
+
+    // ----------------------------------------------------
+    // Fence Safety State Machine & BLE Actuation
+    // ----------------------------------------------------
+    function updateFenceState(newState, reason = '') {
+      if (currentFenceState === newState) return;
+
+      currentFenceState = newState;
+
+      if (currentFenceState === 'TRIPPED') {
+        fenceStateBanner.classList.remove('from-emerald-950/60', 'to-emerald-950/60', 'border-emerald-500/50', 'animate-glow-green');
+        fenceStateBanner.classList.add('from-red-950/80', 'to-red-950/80', 'border-red-500', 'animate-glow-red');
+        
+        stateBgGlow.classList.remove('bg-emerald-500/10');
+        stateBgGlow.classList.add('bg-red-500/20');
+
+        stateIconBox.classList.remove('bg-emerald-500/20', 'border-emerald-500/40');
+        stateIconBox.classList.add('bg-red-500/30', 'border-red-500/60');
+        
+        iconStateArmed.classList.add('hidden');
+        iconStateTripped.classList.remove('hidden');
+
+        stateTitle.textContent = 'SAFE TRIP / DEACTIVATED';
+        stateTitle.classList.remove('text-emerald-400');
+        stateTitle.classList.add('text-red-400');
+
+        stateSubtitle.textContent = `HUMAN DETECTED • Laser power CUT OFF (${reason})`;
+
+        relayStatusTag.textContent = 'OPEN (CUT OFF)';
+        relayStatusTag.classList.remove('bg-emerald-500/30', 'text-emerald-300', 'border-emerald-500/50');
+        relayStatusTag.classList.add('bg-red-500/40', 'text-red-200', 'border-red-500/80');
+
+        headerStatusDot.classList.remove('bg-emerald-500');
+        headerStatusDot.classList.add('bg-red-500');
+
+        playHazardAlertSound();
+        sendBleCommand('TRIP\n');
+        logTelemetry(`FENCE TRIPPED: Human detected! (${reason})`, 'danger');
+
+      } else if (currentFenceState === 'ARMED') {
+        fenceStateBanner.classList.remove('from-red-950/80', 'to-red-950/80', 'border-red-500', 'animate-glow-red');
+        fenceStateBanner.classList.add('from-emerald-950/60', 'to-emerald-950/60', 'border-emerald-500/50', 'animate-glow-green');
+        
+        stateBgGlow.classList.remove('bg-red-500/20');
+        stateBgGlow.classList.add('bg-emerald-500/10');
+
+        stateIconBox.classList.remove('bg-red-500/30', 'border-red-500/60');
+        stateIconBox.classList.add('bg-emerald-500/20', 'border-emerald-500/40');
+        
+        iconStateTripped.classList.add('hidden');
+        iconStateArmed.classList.remove('hidden');
+
+        stateTitle.textContent = 'ARMED / LASER ACTIVE';
+        stateTitle.classList.remove('text-red-400');
+        stateTitle.classList.add('text-emerald-400');
+
+        stateSubtitle.textContent = 'Perimeter energized • Animals deterred';
+
+        relayStatusTag.textContent = 'CLOSED (ON)';
+        relayStatusTag.classList.remove('bg-red-500/40', 'text-red-200', 'border-red-500/80');
+        relayStatusTag.classList.add('bg-emerald-500/30', 'text-emerald-300', 'border-emerald-500/50');
+
+        headerStatusDot.classList.remove('bg-red-500');
+        headerStatusDot.classList.add('bg-emerald-500');
+
+        safetyHoldTimerBadge.classList.add('hidden');
+        sendBleCommand('ARM\n');
+        logTelemetry('FENCE ARMED: Perimeter clear of humans.', 'success');
+      }
+    }
+
+    // ----------------------------------------------------
+    // Real-Time Vision Inference Loop with Adaptive Pacing
+    // ----------------------------------------------------
+    async function runInferenceLoop() {
+      if (!isDetecting || !model || !webcam.videoWidth) {
+        requestAnimationFrame(runInferenceLoop);
+        return;
+      }
+
+      const now = performance.now();
+      const minInterval = 1000 / targetInferenceFps;
+
+      // Pacing throttle to prevent phone overheating on long exhibition runs
+      if (now - lastInferenceTimestamp >= minInterval) {
+        lastInferenceTimestamp = now;
+        const startTime = performance.now();
+
+        try {
+          const predictions = await model.detect(webcam);
+          const latency = Math.round(performance.now() - startTime);
+          modelLatency.textContent = `${latency} ms`;
+
+          frameCount++;
+          if (now - lastFrameTimestamp >= 1000) {
+            currentFps = Math.round((frameCount * 1000) / (now - lastFrameTimestamp));
+            fpsDisplay.textContent = `FPS: ${currentFps}`;
+            frameCount = 0;
+            lastFrameTimestamp = now;
+          }
+
+          processDetections(predictions);
+
+        } catch (err) {
+          console.error('Inference error:', err);
+        }
+      }
+
+      if (isDetecting) {
+        requestAnimationFrame(runInferenceLoop);
+      }
+    }
+
+    // ----------------------------------------------------
+    // Process Detections & Coordinate Mapping
+    // ----------------------------------------------------
+    function processDetections(predictions) {
+      ctx.clearRect(0, 0, canvasOverlay.width, canvasOverlay.height);
+
+      let humanFound = false;
+      let humanConfidence = 0;
+      let animalFound = false;
+      let animalCount = 0;
+      let detectedAnimalTypes = [];
+      let humanCount = 0;
+      let maxConf = 0;
+
+      // Compute exact object-fit: cover letterbox scaling & offsets
+      const cW = canvasOverlay.width;
+      const cH = canvasOverlay.height;
+      const vW = webcam.videoWidth || 1280;
+      const vH = webcam.videoHeight || 720;
+
+      const scale = Math.max(cW / vW, cH / vH);
+      const scaledW = vW * scale;
+      const scaledH = vH * scale;
+      const offsetX = (cW - scaledW) / 2;
+      const offsetY = (cH - scaledH) / 2;
+
+      // Handle Simulated Exhibition Overrides
+      if (simulationOverride === 'HUMAN') {
+        humanFound = true;
+        humanConfidence = 0.94;
+        humanCount = 1;
+        maxConf = 0.94;
+        drawRenderedBox(cW * 0.25, cH * 0.15, cW * 0.5, cH * 0.7, 'HUMAN [SIMULATED]', 0.94, '#ef4444', true);
+      } else if (simulationOverride === 'ANIMAL') {
+        animalFound = true;
+        animalCount = 1;
+        maxConf = 0.88;
+        detectedAnimalTypes.push('cow');
+        drawRenderedBox(cW * 0.2, cH * 0.3, cW * 0.6, cH * 0.5, 'ANIMAL: COW [SIMULATED]', 0.88, '#f59e0b', false);
+      }
+
+      // Normal Predictions Loop
+      if (!simulationOverride) {
+        predictions.forEach(pred => {
+          const [rawX, rawY, rawW, rawH] = pred.bbox;
+          const label = pred.class.toLowerCase();
+          const score = pred.score;
+
+          if (score > maxConf) maxConf = score;
+
+          // Map raw video pixels into canvas coordinates with 1:1 precision
+          let mappedX = rawX * scale + offsetX;
+          const mappedY = rawY * scale + offsetY;
+          const mappedW = rawW * scale;
+          const mappedH = rawH * scale;
+
+          if (currentFacingMode === 'user') {
+            mappedX = cW - (mappedX + mappedW);
+          }
+
+          if (label === 'person' && score >= humanConfidenceThreshold) {
+            humanFound = true;
+            humanCount++;
+            if (score > humanConfidence) humanConfidence = score;
+            drawRenderedBox(mappedX, mappedY, mappedW, mappedH, 'HUMAN', score, '#ef4444', true);
+          } else if (ANIMAL_CLASSES.has(label) && score >= animalConfidenceThreshold) {
+            animalFound = true;
+            animalCount++;
+            detectedAnimalTypes.push(label);
+            drawRenderedBox(mappedX, mappedY, mappedW, mappedH, `ANIMAL: ${label.toUpperCase()}`, score, '#f59e0b', false);
+          } else {
+            if (score > 0.65) {
+              drawRenderedBox(mappedX, mappedY, mappedW, mappedH, label.toUpperCase(), score, '#475569', false, true);
+            }
+          }
+        });
+      }
+
+      // Update HUD Counters
+      hudHumanCount.textContent = `HUMAN: ${humanCount}`;
+      hudAnimalCount.textContent = `ANIMAL: ${animalCount}`;
+      maxConfVal.textContent = `${Math.round(maxConf * 100)}%`;
+
+      // Status Summary Label & Priority Safety Override Handling
+      if (humanFound) {
+        if (animalFound) {
+          detectionClassTag.textContent = `OVERRIDE: HUMAN + ANIMAL`;
+          detectionClassTag.className = 'text-[10px] font-mono font-bold text-red-400 animate-pulse';
+        } else {
+          detectionClassTag.textContent = `HUMAN (${Math.round(humanConfidence * 100)}%)`;
+          detectionClassTag.className = 'text-xs font-mono font-bold text-red-400';
+        }
+      } else if (animalFound) {
+        detectionClassTag.textContent = `ANIMAL: ${detectedAnimalTypes[0].toUpperCase()}`;
+        detectionClassTag.className = 'text-xs font-mono font-bold text-amber-400';
+      } else {
+        detectionClassTag.textContent = 'PERIMETER CLEAR';
+        detectionClassTag.className = 'text-xs font-mono font-bold text-emerald-400';
+      }
+
+      // Safety State Logic with Hysteresis Hold
+      const currentTime = performance.now();
+
+      if (humanFound) {
+        lastHumanDetectedTimestamp = currentTime;
+        updateFenceState('TRIPPED', `${Math.round(humanConfidence * 100)}% Confidence`);
+      } else {
+        if (currentFenceState === 'TRIPPED') {
+          const elapsedSinceHuman = currentTime - lastHumanDetectedTimestamp;
+          const remainingHold = safetyHoldDurationMs - elapsedSinceHuman;
+
+          if (remainingHold > 0) {
+            safetyHoldTimerBadge.classList.remove('hidden');
+            safetyHoldTimerBadge.textContent = `HOLD: ${(remainingHold / 1000).toFixed(1)}s`;
+          } else {
+            safetyHoldTimerBadge.classList.add('hidden');
+            updateFenceState('ARMED', 'Perimeter clear after safety hold');
+          }
+        }
+      }
+    }
+
+    // ----------------------------------------------------
+    // Canvas HUD Drawing Helper with Pixel Precision
+    // ----------------------------------------------------
+    function drawRenderedBox(drawX, y, width, height, label, score, color, isHuman = false, isSubtle = false) {
+      ctx.save();
+
+      ctx.strokeStyle = color;
+      ctx.lineWidth = isHuman ? 3.5 : 2.5;
+
+      ctx.shadowColor = color;
+      ctx.shadowBlur = isHuman ? 12 : 6;
+
+      ctx.strokeRect(drawX, y, width, height);
+
+      // HUD Corner Accents
+      const cornerLen = Math.min(width * 0.2, 16);
+      ctx.lineWidth = isHuman ? 4.5 : 3.5;
+      
+      ctx.beginPath();
+      ctx.moveTo(drawX, y + cornerLen);
+      ctx.lineTo(drawX, y);
+      ctx.lineTo(drawX + cornerLen, y);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(drawX + width - cornerLen, y);
+      ctx.lineTo(drawX + width, y);
+      ctx.lineTo(drawX + width, y + cornerLen);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(drawX, y + height - cornerLen);
+      ctx.lineTo(drawX, y + height);
+      ctx.lineTo(drawX + cornerLen, y + height);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(drawX + width - cornerLen, y + height);
+      ctx.lineTo(drawX + width, y + height);
+      ctx.lineTo(drawX + width, y + height - cornerLen);
+      ctx.stroke();
+
+      // Label Header Badge
+      const confText = `${label} [${Math.round(score * 100)}%]`;
+      ctx.font = isHuman ? 'bold 12px "JetBrains Mono", monospace' : '11px "JetBrains Mono", monospace';
+      const textWidth = ctx.measureText(confText).width;
+      const textHeight = 18;
+
+      ctx.fillStyle = color;
+      ctx.fillRect(drawX, Math.max(0, y - textHeight), textWidth + 10, textHeight);
+
+      ctx.fillStyle = '#000000';
+      ctx.fillText(confText, drawX + 5, Math.max(12, y - 4));
+
+      ctx.restore();
+    }
+
+    // ----------------------------------------------------
+    // Web Bluetooth API Integration (Nordic UART Service)
+    // ----------------------------------------------------
+    async function connectBle() {
+      if (!navigator.bluetooth) {
+        alert('Web Bluetooth API is not supported in this browser.\n\nPlease use Google Chrome or Microsoft Edge on Android, Mac, or Windows.\nNote: Web Bluetooth requires HTTPS or localhost.');
+        logTelemetry('Web Bluetooth not supported by browser', 'danger');
+        return;
+      }
+
+      if (bleDevice && bleDevice.gatt.connected) {
+        disconnectBle();
+        return;
+      }
+
+      try {
+        isBleConnecting = true;
+        bleBtnText.textContent = 'SCANNING...';
+        btnBleConnect.classList.add('animate-pulse');
+        logTelemetry('Scanning for BLE device "FenceGuard-ESP32"...', 'ble');
+
+        bleDevice = await navigator.bluetooth.requestDevice({
+          filters: [
+            { namePrefix: 'FenceGuard' },
+            { services: [NUS_SERVICE_UUID] }
+          ],
+          optionalServices: [NUS_SERVICE_UUID]
+        });
+
+        bleDevice.addEventListener('gattserverdisconnected', onBleDisconnected);
+        bleDeviceNameTag.textContent = bleDevice.name || 'FenceGuard';
+
+        logTelemetry(`Found device: ${bleDevice.name}. Connecting to GATT...`, 'ble');
+        bleServer = await bleDevice.gatt.connect();
+
+        logTelemetry('GATT Server connected. Getting Nordic UART Service...', 'ble');
+        const service = await bleServer.getPrimaryService(NUS_SERVICE_UUID);
+
+        logTelemetry('Getting RX Characteristic (6e400002)...', 'ble');
+        rxCharacteristic = await service.getCharacteristic(NUS_RX_UUID);
+
+        try {
+          logTelemetry('Getting TX Characteristic (6e400003)...', 'ble');
+          txCharacteristic = await service.getCharacteristic(NUS_TX_UUID);
+          await txCharacteristic.startNotifications();
+          txCharacteristic.addEventListener('characteristicvaluechanged', onTxNotificationReceived);
+          logTelemetry('TX Characteristic notifications enabled!', 'success');
+        } catch (txErr) {
+          logTelemetry(`TX characteristic optional setup: ${txErr.message}`, 'warn');
+        }
+
+        onBleConnected();
+
+      } catch (err) {
+        logTelemetry(`BLE Connection Error: ${err.message}`, 'danger');
+        onBleDisconnected();
+      } finally {
+        isBleConnecting = false;
+        btnBleConnect.classList.remove('animate-pulse');
+      }
+    }
+
+    function onBleConnected() {
+      bleStatusLabel.textContent = 'CONNECTED';
+      bleStatusLabel.className = 'text-xs font-mono font-bold text-emerald-400';
+      bleIndicator.className = 'w-2 h-2 rounded-full bg-emerald-500 animate-ping';
+      bleBtnText.textContent = 'DISCONNECT';
+      btnBleConnect.classList.remove('bg-cyan-600/20', 'border-cyan-500/50', 'text-cyan-300');
+      btnBleConnect.classList.add('bg-emerald-600/20', 'border-emerald-500/50', 'text-emerald-300');
+
+      logTelemetry(`BLE Linked to ${bleDevice.name || 'ESP32'} via Nordic UART`, 'success');
+
+      const initialCmd = (currentFenceState === 'TRIPPED') ? 'TRIP\n' : 'ARM\n';
+      sendBleCommand(initialCmd);
+
+      clearInterval(heartbeatTimer);
+      heartbeatTimer = setInterval(() => {
+        if (bleServer && bleServer.connected) {
+          sendBleCommand('PING\n', true);
+        }
+      }, HEARTBEAT_INTERVAL_MS);
+    }
+
+    function onBleDisconnected() {
+      bleStatusLabel.textContent = 'DISCONNECTED';
+      bleStatusLabel.className = 'text-xs font-mono font-bold text-red-400';
+      bleIndicator.className = 'w-2 h-2 rounded-full bg-red-500';
+      bleBtnText.textContent = 'BLE CONNECT';
+      bleDeviceNameTag.textContent = 'No Device';
+      btnBleConnect.classList.remove('bg-emerald-600/20', 'border-emerald-500/50', 'text-emerald-300');
+      btnBleConnect.classList.add('bg-cyan-600/20', 'border-cyan-500/50', 'text-cyan-300');
+
+      clearInterval(heartbeatTimer);
+      heartbeatTimer = null;
+      rxCharacteristic = null;
+      txCharacteristic = null;
+      lastSentCommand = null;
+
+      logTelemetry('BLE Disconnected! (ESP32 fail-safe cuts fence power)', 'warn');
+    }
+
+    function disconnectBle() {
+      if (bleDevice && bleDevice.gatt.connected) {
+        logTelemetry('Disconnecting BLE session...', 'info');
+        bleDevice.gatt.disconnect();
+      }
+    }
+
+    async function sendBleCommand(cmd, isHeartbeat = false) {
+      if (!isHeartbeat) {
+        lastTxCmd.textContent = cmd.trim();
+      }
+
+      if (!rxCharacteristic || !bleServer || !bleServer.connected) {
+        if (!isHeartbeat) {
+          logTelemetry(`[VIRTUAL BLE] TX -> "${cmd.trim()}"`, 'ble');
+        }
+        return;
+      }
+
+      if (!isHeartbeat && cmd === lastSentCommand) {
+        return;
+      }
+
+      try {
+        const encoder = new TextEncoder();
+        const data = encoder.encode(cmd);
+        
+        if (rxCharacteristic.writeValueWithoutResponse) {
+          await rxCharacteristic.writeValueWithoutResponse(data);
+        } else {
+          await rxCharacteristic.writeValue(data);
+        }
+
+        if (!isHeartbeat) {
+          lastSentCommand = cmd;
+          logTelemetry(`[BLE TX] -> "${cmd.trim()}"`, 'ble');
+        }
+      } catch (err) {
+        logTelemetry(`BLE TX Error: ${err.message}`, 'warn');
+      }
+    }
+
+    function onTxNotificationReceived(event) {
+      const value = event.target.value;
+      const decoder = new TextDecoder('utf-8');
+      const text = decoder.decode(value).trim();
+      logTelemetry(`[BLE RX Telemetry] <- "${text}"`, 'success');
+    }
+
+    btnBleConnect.addEventListener('click', () => {
+      initAudio();
+      connectBle();
+    });
+
+    // ----------------------------------------------------
+    // Jury Exhibition Simulator Controls (Virtual Props)
+    // ----------------------------------------------------
+    const btnSimHuman = document.getElementById('btnSimHuman');
+    const btnSimAnimal = document.getElementById('btnSimAnimal');
+    const btnSimClear = document.getElementById('btnSimClear');
+
+    btnSimHuman.addEventListener('click', () => {
+      initAudio();
+      clearTimeout(simulationTimeout);
+      simulationOverride = 'HUMAN';
+      logTelemetry('[DEMO] Simulated Human entered fence area!', 'danger');
+      simulationTimeout = setTimeout(() => {
+        simulationOverride = null;
+        logTelemetry('[DEMO] Simulated Human left scene. Starting safety hold...', 'info');
+      }, 4000);
+    });
+
+    btnSimAnimal.addEventListener('click', () => {
+      initAudio();
+      clearTimeout(simulationTimeout);
+      simulationOverride = 'ANIMAL';
+      logTelemetry('[DEMO] Simulated Wild Animal (Cow) detected at fence boundary.', 'warn');
+      simulationTimeout = setTimeout(() => {
+        simulationOverride = null;
+        logTelemetry('[DEMO] Simulated Animal moved away.', 'info');
+      }, 4000);
+    });
+
+    btnSimClear.addEventListener('click', () => {
+      clearTimeout(simulationTimeout);
+      simulationOverride = null;
+      lastHumanDetectedTimestamp = 0;
+      updateFenceState('ARMED', 'Manual Scene Reset');
+      logTelemetry('[DEMO] Scene reset to CLEAR', 'info');
+    });
+
+    // ----------------------------------------------------
+    // PWA Installation & Service Worker
+    // ----------------------------------------------------
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+          .then(reg => console.log('[PWA] Service Worker registered:', reg.scope))
+          .catch(err => console.warn('[PWA] Service Worker registration failed:', err));
+      });
+    }
+
+    const pwaInstallBanner = document.getElementById('pwaInstallBanner');
+    const btnPwaInstall = document.getElementById('btnPwaInstall');
+    const btnPwaDismiss = document.getElementById('btnPwaDismiss');
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      pwaInstallBanner.classList.remove('hidden');
+    });
+
+    btnPwaInstall.addEventListener('click', async () => {
+      if (deferredPrompt) {
+        deferredPrompt.prompt();
+        const choiceResult = await deferredPrompt.userChoice;
+        if (choiceResult.outcome === 'accepted') {
+          logTelemetry('User installed FenceGuard PWA', 'success');
+        }
+        deferredPrompt = null;
+        pwaInstallBanner.classList.add('hidden');
+      }
+    });
+
+    btnPwaDismiss.addEventListener('click', () => {
+      pwaInstallBanner.classList.add('hidden');
+    });
+
+    // ----------------------------------------------------
+    // Bootstrap System
+    // ----------------------------------------------------
+    window.addEventListener('DOMContentLoaded', async () => {
+      logTelemetry('Initializing FenceGuard AI Mobile Client...', 'info');
+      try {
+        await setupCamera();
+        await loadModel();
+        await requestWakeLock();
+        runInferenceLoop();
+        logTelemetry('FenceGuard AI ready! Stand mounted & ready for jury demo.', 'success');
+      } catch (err) {
+        console.error('Initialization error:', err);
+      }
+    });
+
+  </script>
+</body>
+</html>

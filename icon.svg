@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0b1329" />
+      <stop offset="50%" stop-color="#111827" />
+      <stop offset="100%" stop-color="#030712" />
+    </linearGradient>
+    <filter id="laserGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="6" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- Background Badge -->
+  <rect width="512" height="512" rx="110" fill="url(#bgGrad)" stroke="#1e293b" stroke-width="4"/>
+  
+  <!-- Outer Shield Outline -->
+  <path d="M 256 60 Q 370 70 410 130 Q 420 280 256 440 Q 92 280 102 130 Q 142 70 256 60 Z" 
+        fill="none" stroke="#10b981" stroke-width="8" stroke-linejoin="round" opacity="0.4" />
+
+  <!-- Inner Shield -->
+  <path d="M 256 85 Q 350 95 385 145 Q 395 270 256 405 Q 117 270 127 145 Q 162 95 256 85 Z" 
+        fill="#0f172a" stroke="#00f0ff" stroke-width="6" stroke-linejoin="round" />
+
+  <!-- Laser Fence Horizontal Beams -->
+  <g filter="url(#laserGlow)">
+    <line x1="160" y1="180" x2="352" y2="180" stroke="#ff0055" stroke-width="6" stroke-linecap="round"/>
+    <line x1="145" y1="230" x2="367" y2="230" stroke="#00f0ff" stroke-width="6" stroke-linecap="round"/>
+    <line x1="150" y1="280" x2="362" y2="280" stroke="#00ff66" stroke-width="6" stroke-linecap="round"/>
+    <line x1="175" y1="330" x2="337" y2="330" stroke="#ffaa00" stroke-width="6" stroke-linecap="round"/>
+  </g>
+
+  <!-- Fence Posts -->
+  <rect x="155" y="160" width="10" height="190" rx="4" fill="#64748b" />
+  <rect x="347" y="160" width="10" height="190" rx="4" fill="#64748b" />
+  <circle cx="160" cy="180" r="6" fill="#ff0055" />
+  <circle cx="160" cy="230" r="6" fill="#00f0ff" />
+  <circle cx="160" cy="280" r="6" fill="#00ff66" />
+  <circle cx="160" cy="330" r="6" fill="#ffaa00" />
+  <circle cx="352" cy="180" r="6" fill="#ff0055" />
+  <circle cx="352" cy="230" r="6" fill="#00f0ff" />
+  <circle cx="352" cy="280" r="6" fill="#00ff66" />
+  <circle cx="352" cy="330" r="6" fill="#ffaa00" />
+
+  <!-- Center AI Eye / Sensor -->
+  <circle cx="256" cy="255" r="40" fill="#030712" stroke="#00f0ff" stroke-width="5" />
+  <circle cx="256" cy="255" r="22" fill="#10b981" filter="url(#laserGlow)"/>
+  <circle cx="256" cy="255" r="10" fill="#ffffff" />
+  
+  <!-- AI Crosshairs -->
+  <path d="M 256 195 L 256 205 M 256 305 L 256 315 M 196 255 L 206 255 M 306 255 L 316 255" 
+        stroke="#00f0ff" stroke-width="4" stroke-linecap="round" />
+</svg>
