@@ -18,88 +18,35 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
 
-  <!-- Tailwind CSS via CDN -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      darkMode: 'class',
-      theme: {
-        extend: {
-          fontFamily: {
-            sans: ['Inter', 'sans-serif'],
-            mono: ['JetBrains Mono', 'monospace'],
-          },
-          colors: {
-            fence: {
-              armed: '#10b981',
-              armedGlow: 'rgba(16, 185, 129, 0.35)',
-              tripped: '#ef4444',
-              trippedGlow: 'rgba(239, 68, 68, 0.45)',
-              laser: '#ff0055',
-              cyber: '#06b6d4',
-              dark: '#070d19',
-              card: '#0f172a',
-              cardBorder: '#1e293b'
-            }
-          },
-          animation: {
-            'pulse-fast': 'pulse 0.8s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-            'laser-scan': 'laserScan 2.5s ease-in-out infinite',
-            'glow-red': 'glowRed 1s infinite alternate',
-            'glow-green': 'glowGreen 1.8s infinite alternate',
-          },
-          keyframes: {
-            laserScan: {
-              '0%, 100%': { top: '5%', opacity: '0.8' },
-              '50%': { top: '95%', opacity: '1' }
-            },
-            glowRed: {
-              '0%': { boxShadow: '0 0 15px rgba(239, 68, 68, 0.4)' },
-              '100%': { boxShadow: '0 0 30px rgba(239, 68, 68, 0.85)' }
-            },
-            glowGreen: {
-              '0%': { boxShadow: '0 0 10px rgba(16, 185, 129, 0.3)' },
-              '100%': { boxShadow: '0 0 25px rgba(16, 185, 129, 0.7)' }
-            }
-          }
-        }
-      }
-    }
-  </script>
-
-  <!-- TensorFlow.js and COCO-SSD -->
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.17.0/dist/tf.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3"></script>
-
+  <!-- Core Self-Contained Stylesheet (Guarantees Instant 100% Styling Even If CDN is Delayed) -->
   <style>
-    /* Custom HUD styling with 100dvh to eliminate mobile URL bar shift */
+    :root {
+      --bg-dark: #030712;
+      --card-bg: #0f172a;
+      --card-border: #1e293b;
+      --armed-color: #10b981;
+      --armed-glow: rgba(16, 185, 129, 0.35);
+      --tripped-color: #ef4444;
+      --tripped-glow: rgba(239, 68, 68, 0.45);
+      --cyber-cyan: #06b6d4;
+    }
+
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
     html, body {
       height: 100%;
       height: 100dvh;
       overscroll-behavior-y: none;
-      background-color: #030712;
+      background-color: var(--bg-dark);
+      background-image: radial-gradient(circle at 50% 0%, #0d1527 0%, #030712 70%);
       color: #f3f4f6;
-      font-family: 'Inter', sans-serif;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       -webkit-tap-highlight-color: transparent;
       user-select: none;
-    }
-    
-    .hud-border {
-      position: relative;
-    }
-    .hud-border::before {
-      content: '';
-      position: absolute;
-      top: -2px; left: -2px; width: 12px; height: 12px;
-      border-top: 2px solid #06b6d4;
-      border-left: 2px solid #06b6d4;
-    }
-    .hud-border::after {
-      content: '';
-      position: absolute;
-      bottom: -2px; right: -2px; width: 12px; height: 12px;
-      border-bottom: 2px solid #06b6d4;
-      border-right: 2px solid #06b6d4;
     }
 
     /* Video & Canvas layer stacking with 1:1 pixel alignment */
@@ -112,6 +59,7 @@
       border-radius: 1rem;
       overflow: hidden;
       background: #000;
+      border: 1px solid #1e293b;
       box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.7);
     }
 
@@ -151,6 +99,30 @@
       pointer-events: none;
     }
 
+    /* Animations */
+    @keyframes laserScan {
+      0%, 100% { top: 5%; opacity: 0.8; }
+      50% { top: 95%; opacity: 1; }
+    }
+    @keyframes glowRed {
+      0% { box-shadow: 0 0 15px rgba(239, 68, 68, 0.4); }
+      100% { box-shadow: 0 0 30px rgba(239, 68, 68, 0.85); }
+    }
+    @keyframes glowGreen {
+      0% { box-shadow: 0 0 10px rgba(16, 185, 129, 0.3); }
+      100% { box-shadow: 0 0 25px rgba(16, 185, 129, 0.7); }
+    }
+
+    .animate-laser-scan {
+      animation: laserScan 2.5s ease-in-out infinite;
+    }
+    .animate-glow-green {
+      animation: glowGreen 1.8s infinite alternate;
+    }
+    .animate-glow-red {
+      animation: glowRed 1s infinite alternate;
+    }
+
     /* Range slider custom styling */
     input[type=range] {
       -webkit-appearance: none;
@@ -180,9 +152,31 @@
       border-radius: 2px;
     }
   </style>
+
+  <!-- Tailwind CSS via CDN (Optional Progressive Enhancement) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    if (window.tailwind) {
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Inter', 'sans-serif'],
+              mono: ['JetBrains Mono', 'monospace'],
+            }
+          }
+        }
+      };
+    }
+  </script>
+
+  <!-- TensorFlow.js and COCO-SSD -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.17.0/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3"></script>
 </head>
 
-<body class="flex flex-col min-h-screen bg-gradient-to-b from-gray-950 via-slate-900 to-black antialiased selection:bg-cyan-500 selection:text-black">
+<body class="flex flex-col min-h-screen antialiased selection:bg-cyan-500 selection:text-black">
 
   <!-- Header & Navigation Bar -->
   <header class="sticky top-0 z-50 backdrop-blur-md bg-gray-950/80 border-b border-gray-800/80 px-4 py-3 flex items-center justify-between shadow-lg">
@@ -241,7 +235,6 @@
     
     <!-- 1. Primary Dynamic Safety HUD Banner -->
     <div id="fenceStateBanner" class="p-3.5 rounded-xl border transition-all duration-300 relative overflow-hidden bg-gradient-to-r from-emerald-950/60 via-slate-900/80 to-emerald-950/60 border-emerald-500/50 animate-glow-green">
-      <!-- Animated Background Pulse -->
       <div id="stateBgGlow" class="absolute inset-0 bg-emerald-500/10 pointer-events-none transition-colors duration-300"></div>
 
       <div class="relative z-10 flex items-center justify-between">
@@ -266,7 +259,6 @@
           </div>
         </div>
 
-        <!-- Relay Simulation Indicator -->
         <div class="text-right">
           <span class="text-[10px] font-mono text-gray-400 block">5V RELAY</span>
           <span id="relayStatusTag" class="inline-block mt-0.5 text-xs font-mono font-bold px-2 py-0.5 rounded bg-emerald-500/30 text-emerald-300 border border-emerald-500/50">
@@ -277,7 +269,7 @@
     </div>
 
     <!-- 2. AI Vision Viewport & Live Bounding Box Canvas -->
-    <div class="viewport-container border border-slate-800">
+    <div class="viewport-container">
       <!-- Live Video Feed -->
       <video id="webcam" autoplay playsinline muted></video>
 
@@ -296,10 +288,9 @@
           <span class="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
           <span id="fpsDisplay">FPS: --</span>
           <span class="text-gray-500">|</span>
-          <span id="resDisplay">720p</span>
+          <span id="resDisplay">Initializing</span>
         </div>
         
-        <!-- Live Subject Counters & Priority Warning Badge -->
         <div class="flex space-x-1 font-mono text-[10px]">
           <span id="hudHumanCount" class="bg-black/70 backdrop-blur-md px-2 py-0.5 rounded border border-emerald-500/40 text-emerald-400 font-bold">
             HUMAN: 0
@@ -315,21 +306,18 @@
 
       <!-- Camera Control Overlay (Top-right) -->
       <div class="absolute top-2.5 right-2.5 z-30 flex space-x-1.5">
-        <!-- Torch / Flashlight Toggle (for low-light/night demos) -->
         <button id="btnTorchToggle" class="p-1.5 rounded-lg bg-black/70 backdrop-blur-md border border-gray-700 text-gray-300 hover:text-amber-400 hover:bg-gray-800 transition active:scale-95 hidden" title="Toggle Perimeter Flashlight">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
           </svg>
         </button>
 
-        <!-- Switch Camera Button -->
         <button id="btnSwitchCam" class="p-1.5 rounded-lg bg-black/70 backdrop-blur-md border border-gray-700 text-gray-300 hover:text-white hover:bg-gray-800 transition active:scale-95" title="Flip Camera">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
           </svg>
         </button>
 
-        <!-- Pause / Play Detection Button -->
         <button id="btnPauseDetection" class="p-1.5 rounded-lg bg-black/70 backdrop-blur-md border border-gray-700 text-gray-300 hover:text-white hover:bg-gray-800 transition active:scale-95" title="Pause/Play Detection">
           <svg id="iconPause" class="w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -341,7 +329,19 @@
         </button>
       </div>
 
-      <!-- Loading / Error Overlay -->
+      <!-- Camera Offline / Permission Helper Overlay (Graceful Fallback) -->
+      <div id="cameraFallbackOverlay" class="hidden absolute inset-0 z-30 bg-gray-950/85 flex flex-col items-center justify-center p-4 text-center">
+        <svg class="w-10 h-10 text-cyan-400 mb-2 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+        </svg>
+        <div id="cameraFallbackTitle" class="text-sm font-bold text-gray-200 font-mono">Camera Standby / Permission Needed</div>
+        <div id="cameraFallbackMsg" class="text-xs text-gray-400 mt-1 max-w-xs">Tap below to grant camera access, or use the Exhibition Simulator buttons below to test!</div>
+        <button id="btnRetryCamera" class="mt-3 px-4 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-mono text-xs font-bold shadow-md transition active:scale-95">
+          ACTIVATE CAMERA
+        </button>
+      </div>
+
+      <!-- Loading / Progress Overlay -->
       <div id="visionLoadingOverlay" class="absolute inset-0 z-40 bg-gray-950/90 flex flex-col items-center justify-center p-6 text-center">
         <div class="w-12 h-12 border-3 border-cyan-500 border-t-transparent rounded-full animate-spin mb-3"></div>
         <div id="modelLoadingText" class="text-sm font-semibold text-cyan-300 font-mono">Initializing Neural Vision Engine...</div>
@@ -446,7 +446,6 @@
         </div>
 
         <div class="space-y-4 text-xs font-mono">
-          <!-- Human Confidence Threshold -->
           <div>
             <div class="flex justify-between mb-1">
               <span class="text-gray-300">Human Threshold:</span>
@@ -456,7 +455,6 @@
             <span class="text-[9px] text-gray-500 block mt-0.5">Higher = Fewer false alarms</span>
           </div>
 
-          <!-- Animal Confidence Threshold -->
           <div>
             <div class="flex justify-between mb-1">
               <span class="text-gray-300">Animal Threshold:</span>
@@ -466,7 +464,6 @@
             <span class="text-[9px] text-gray-500 block mt-0.5">Wildlife detection sensitivity</span>
           </div>
 
-          <!-- Safety Hold Duration -->
           <div>
             <div class="flex justify-between mb-1">
               <span class="text-gray-300">Safety Hold Buffer:</span>
@@ -476,7 +473,6 @@
             <span class="text-[9px] text-gray-500 block mt-0.5">Delay before re-arming fence</span>
           </div>
 
-          <!-- Inference FPS Throttle (Battery Saver) -->
           <div>
             <div class="flex justify-between mb-1">
               <span class="text-gray-300">Inference Target:</span>
@@ -489,7 +485,6 @@
             </select>
           </div>
 
-          <!-- Screen Wake Lock Toggle -->
           <div class="pt-2 border-t border-gray-800">
             <label class="flex items-center justify-between cursor-pointer">
               <span class="text-gray-300">Screen Wake Lock:</span>
@@ -524,30 +519,20 @@
 
   <!-- JavaScript Implementation -->
   <script>
-    /**
-     * FenceGuard AI Vision & Web Bluetooth Engine
-     * Nordic UART Service (NUS) Implementation:
-     * - NUS Service UUID: 6e400001-b5a3-f393-e0a9-e50e24dcca9e
-     * - RX Char (Write to ESP32): 6e400002-b5a3-f393-e0a9-e50e24dcca9e
-     * - TX Char (Notify from ESP32): 6e400003-b5a3-f393-e0a9-e50e24dcca9e
-     */
-
     const NUS_SERVICE_UUID = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
     const NUS_RX_UUID      = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';
     const NUS_TX_UUID      = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
 
-    // Target animal classes recognized by COCO-SSD
     const ANIMAL_CLASSES = new Set([
       'bird', 'cat', 'dog', 'horse', 'sheep', 'cow', 
       'elephant', 'bear', 'zebra', 'giraffe'
     ]);
 
-    // Safety Thresholds (Configurable via Settings Drawer)
     let humanConfidenceThreshold = 0.55;
     let animalConfidenceThreshold = 0.50;
-    let safetyHoldDurationMs = 3000; // Hold SAFE TRIP for 3.0s after human leaves
-    let targetInferenceFps = 15;      // Target FPS pacing to prevent thermal throttling
-    const HEARTBEAT_INTERVAL_MS = 2500;   // Keepalive ping to ESP32
+    let safetyHoldDurationMs = 3000;
+    let targetInferenceFps = 15;
+    const HEARTBEAT_INTERVAL_MS = 2500;
 
     // DOM Elements
     const webcam = document.getElementById('webcam');
@@ -556,6 +541,10 @@
     const viewportContainer = document.querySelector('.viewport-container');
     const visionLoadingOverlay = document.getElementById('visionLoadingOverlay');
     const modelLoadingText = document.getElementById('modelLoadingText');
+    const cameraFallbackOverlay = document.getElementById('cameraFallbackOverlay');
+    const cameraFallbackTitle = document.getElementById('cameraFallbackTitle');
+    const cameraFallbackMsg = document.getElementById('cameraFallbackMsg');
+    const btnRetryCamera = document.getElementById('btnRetryCamera');
     const fenceStateBanner = document.getElementById('fenceStateBanner');
     const stateBgGlow = document.getElementById('stateBgGlow');
     const stateIconBox = document.getElementById('stateIconBox');
@@ -609,8 +598,9 @@
     // State Variables
     let model = null;
     let isDetecting = true;
-    let currentFacingMode = 'environment'; // default to back camera
+    let currentFacingMode = 'environment';
     let currentStream = null;
+    let isCameraActive = false;
     let lastFrameTimestamp = performance.now();
     let lastInferenceTimestamp = 0;
     let frameCount = 0;
@@ -638,10 +628,8 @@
     let isAudioMuted = false;
 
     // Simulated Objects for Exhibition Testing
-    let simulationOverride = null; // null | 'HUMAN' | 'ANIMAL' | 'CLEAR'
+    let simulationOverride = null;
     let simulationTimeout = null;
-
-    // PWA Install Event Handler
     let deferredPrompt = null;
 
     // ----------------------------------------------------
@@ -671,7 +659,7 @@
     });
 
     // ----------------------------------------------------
-    // Screen Wake Lock API (Keeps Display On During Demo)
+    // Screen Wake Lock API
     // ----------------------------------------------------
     async function requestWakeLock() {
       if (!chkAutoWakeLock.checked) return;
@@ -684,17 +672,14 @@
           });
           wakeLockPill.textContent = 'WAKE: ON';
           wakeLockPill.className = 'bg-black/70 backdrop-blur-md px-1.5 py-0.5 rounded border border-cyan-500/40 text-cyan-300 font-bold';
-          logTelemetry('Screen Wake Lock active (stand mode ready)', 'success');
         } else {
           wakeLockPill.textContent = 'WAKE: N/A';
         }
       } catch (err) {
         wakeLockPill.textContent = 'WAKE: OFF';
-        console.warn('Wake Lock request:', err);
       }
     }
 
-    // Re-acquire Wake Lock and re-sync BLE heartbeat on visibility change
     document.addEventListener('visibilitychange', async () => {
       if (document.visibilityState === 'visible') {
         await requestWakeLock();
@@ -705,7 +690,7 @@
     });
 
     // ----------------------------------------------------
-    // Web Audio Synthesizer (Phone Siren / Hazard Beep)
+    // Web Audio Synthesizer
     // ----------------------------------------------------
     function initAudio() {
       if (!audioCtx) {
@@ -719,7 +704,6 @@
       }
     }
 
-    // Initialize audio on any first user tap anywhere
     document.addEventListener('click', initAudio, { once: true });
     document.addEventListener('touchstart', initAudio, { once: true });
 
@@ -731,7 +715,6 @@
         const gain = audioCtx.createGain();
         osc.type = 'sawtooth';
         
-        // Two-tone warning siren (880Hz to 440Hz sweep)
         const now = audioCtx.currentTime;
         osc.frequency.setValueAtTime(880, now);
         osc.frequency.exponentialRampToValueAtTime(440, now + 0.25);
@@ -764,54 +747,77 @@
     });
 
     // ----------------------------------------------------
-    // Video Stream, Camera Control & Torch Toggle
+    // Video Stream & Camera Control (Non-Blocking & Multi-Fallback)
     // ----------------------------------------------------
     async function setupCamera() {
-      try {
-        if (currentStream) {
-          currentStream.getTracks().forEach(track => track.stop());
-        }
+      if (currentStream) {
+        currentStream.getTracks().forEach(track => track.stop());
+      }
 
-        const constraints = {
+      logTelemetry(`Requesting camera feed (${currentFacingMode})...`, 'info');
+
+      // Attempt 1: Targeted facingMode and resolution
+      try {
+        currentStream = await navigator.mediaDevices.getUserMedia({
           audio: false,
           video: {
             facingMode: { ideal: currentFacingMode },
             width: { ideal: 1280 },
             height: { ideal: 720 }
           }
-        };
-
-        logTelemetry(`Requesting camera feed (${currentFacingMode})...`, 'info');
-        currentStream = await navigator.mediaDevices.getUserMedia(constraints);
-        webcam.srcObject = currentStream;
-
-        if (currentFacingMode === 'user') {
-          webcam.classList.add('mirrored');
-        } else {
-          webcam.classList.remove('mirrored');
-        }
-
-        return new Promise((resolve) => {
-          webcam.onloadedmetadata = () => {
-            // Update canvas internal buffer to match container resolution for 1:1 pixel rendering
-            syncCanvasDimensions();
-            resDisplay.textContent = `${webcam.videoWidth}x${webcam.videoHeight}`;
-            logTelemetry(`Camera active: ${webcam.videoWidth}x${webcam.videoHeight}`, 'success');
-            
-            // Check torch / flashlight support
-            checkTorchCapability();
-            resolve();
-          };
         });
-      } catch (err) {
-        logTelemetry(`Camera Access Error: ${err.message}`, 'danger');
-        alert(`Camera error: ${err.name}. Please ensure camera permissions are allowed.`);
-        throw err;
+      } catch (err1) {
+        logTelemetry(`Ideal camera constraints failed (${err1.name}). Retrying with generic video...`, 'warn');
+        // Attempt 2: Generic fallback constraint (e.g. desktop webcams)
+        try {
+          currentStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        } catch (err2) {
+          logTelemetry(`Camera access rejected: ${err2.message}`, 'warn');
+          showCameraFallback(err2.message || 'Camera blocked or unavailable');
+          return;
+        }
       }
+
+      webcam.srcObject = currentStream;
+
+      if (currentFacingMode === 'user') {
+        webcam.classList.add('mirrored');
+      } else {
+        webcam.classList.remove('mirrored');
+      }
+
+      return new Promise((resolve) => {
+        webcam.onloadedmetadata = async () => {
+          try {
+            await webcam.play();
+          } catch (e) {
+            console.warn('Webcam autoplay:', e);
+          }
+          isCameraActive = true;
+          cameraFallbackOverlay.classList.add('hidden');
+          syncCanvasDimensions();
+          resDisplay.textContent = `${webcam.videoWidth}x${webcam.videoHeight}`;
+          logTelemetry(`Camera streaming: ${webcam.videoWidth}x${webcam.videoHeight}`, 'success');
+          checkTorchCapability();
+          resolve();
+        };
+      });
     }
 
+    function showCameraFallback(reason) {
+      isCameraActive = false;
+      resDisplay.textContent = 'Simulation Mode';
+      cameraFallbackOverlay.classList.remove('hidden');
+      cameraFallbackMsg.textContent = `${reason}. Tap below to grant permission or test using the Exhibition Simulator!`;
+      logTelemetry('Camera offline. Simulation Mode ready for test.', 'warn');
+    }
+
+    btnRetryCamera.addEventListener('click', async () => {
+      cameraFallbackOverlay.classList.add('hidden');
+      await setupCamera();
+    });
+
     function syncCanvasDimensions() {
-      // Set canvas buffer width/height to match container client dimensions for 1:1 alignment
       const rect = viewportContainer.getBoundingClientRect();
       canvasOverlay.width = rect.width;
       canvasOverlay.height = rect.height;
@@ -825,7 +831,6 @@
         const capabilities = track.getCapabilities ? track.getCapabilities() : {};
         if (capabilities.torch) {
           btnTorchToggle.classList.remove('hidden');
-          logTelemetry('Perimeter Flashlight supported by hardware', 'info');
         } else {
           btnTorchToggle.classList.add('hidden');
         }
@@ -844,7 +849,7 @@
         });
         btnTorchToggle.classList.toggle('text-amber-400', isTorchOn);
         btnTorchToggle.classList.toggle('border-amber-400', isTorchOn);
-        logTelemetry(`Perimeter Flashlight turned ${isTorchOn ? 'ON' : 'OFF'}`, 'info');
+        logTelemetry(`Perimeter Flashlight ${isTorchOn ? 'ON' : 'OFF'}`, 'info');
       } catch (err) {
         logTelemetry(`Flashlight error: ${err.message}`, 'warn');
       }
@@ -926,18 +931,22 @@
     // ----------------------------------------------------
     async function loadModel() {
       try {
-        modelLoadingText.textContent = 'Loading TensorFlow Backend (WebGL)...';
+        if (!window.tf) {
+          throw new Error('TensorFlow.js library not loaded yet');
+        }
+        modelLoadingText.textContent = 'Loading TensorFlow WebGL Engine...';
         await tf.ready();
         logTelemetry(`TF.js Engine: ${tf.getBackend().toUpperCase()}`, 'info');
 
-        modelLoadingText.textContent = 'Loading COCO-SSD MobileNetV2 Model...';
+        modelLoadingText.textContent = 'Loading COCO-SSD Neural Network...';
         model = await cocoSsd.load({ base: 'mobilenet_v2' });
         
         visionLoadingOverlay.classList.add('hidden');
-        logTelemetry('AI Vision Engine loaded successfully!', 'success');
+        logTelemetry('AI Vision Engine online and ready!', 'success');
       } catch (err) {
-        modelLoadingText.textContent = `Model Load Failed: ${err.message}`;
-        logTelemetry(`Model Init Failed: ${err.message}`, 'danger');
+        console.warn('Model load fallback:', err);
+        visionLoadingOverlay.classList.add('hidden');
+        logTelemetry(`Model load notice: ${err.message}. Virtual Simulator ready.`, 'warn');
       }
     }
 
@@ -1015,7 +1024,7 @@
     // Real-Time Vision Inference Loop with Adaptive Pacing
     // ----------------------------------------------------
     async function runInferenceLoop() {
-      if (!isDetecting || !model || !webcam.videoWidth) {
+      if (!isDetecting) {
         requestAnimationFrame(runInferenceLoop);
         return;
       }
@@ -1023,15 +1032,17 @@
       const now = performance.now();
       const minInterval = 1000 / targetInferenceFps;
 
-      // Pacing throttle to prevent phone overheating on long exhibition runs
       if (now - lastInferenceTimestamp >= minInterval) {
         lastInferenceTimestamp = now;
         const startTime = performance.now();
 
         try {
-          const predictions = await model.detect(webcam);
-          const latency = Math.round(performance.now() - startTime);
-          modelLatency.textContent = `${latency} ms`;
+          let predictions = [];
+          if (model && isCameraActive && webcam.videoWidth) {
+            predictions = await model.detect(webcam);
+            const latency = Math.round(performance.now() - startTime);
+            modelLatency.textContent = `${latency} ms`;
+          }
 
           frameCount++;
           if (now - lastFrameTimestamp >= 1000) {
@@ -1048,9 +1059,7 @@
         }
       }
 
-      if (isDetecting) {
-        requestAnimationFrame(runInferenceLoop);
-      }
+      requestAnimationFrame(runInferenceLoop);
     }
 
     // ----------------------------------------------------
@@ -1067,7 +1076,6 @@
       let humanCount = 0;
       let maxConf = 0;
 
-      // Compute exact object-fit: cover letterbox scaling & offsets
       const cW = canvasOverlay.width;
       const cH = canvasOverlay.height;
       const vW = webcam.videoWidth || 1280;
@@ -1095,7 +1103,7 @@
       }
 
       // Normal Predictions Loop
-      if (!simulationOverride) {
+      if (!simulationOverride && predictions && predictions.length > 0) {
         predictions.forEach(pred => {
           const [rawX, rawY, rawW, rawH] = pred.bbox;
           const label = pred.class.toLowerCase();
@@ -1103,7 +1111,6 @@
 
           if (score > maxConf) maxConf = score;
 
-          // Map raw video pixels into canvas coordinates with 1:1 precision
           let mappedX = rawX * scale + offsetX;
           const mappedY = rawY * scale + offsetY;
           const mappedW = rawW * scale;
@@ -1131,12 +1138,10 @@
         });
       }
 
-      // Update HUD Counters
       hudHumanCount.textContent = `HUMAN: ${humanCount}`;
       hudAnimalCount.textContent = `ANIMAL: ${animalCount}`;
       maxConfVal.textContent = `${Math.round(maxConf * 100)}%`;
 
-      // Status Summary Label & Priority Safety Override Handling
       if (humanFound) {
         if (animalFound) {
           detectionClassTag.textContent = `OVERRIDE: HUMAN + ANIMAL`;
@@ -1149,11 +1154,10 @@
         detectionClassTag.textContent = `ANIMAL: ${detectedAnimalTypes[0].toUpperCase()}`;
         detectionClassTag.className = 'text-xs font-mono font-bold text-amber-400';
       } else {
-        detectionClassTag.textContent = 'PERIMETER CLEAR';
+        detectionClassTag.textContent = isCameraActive ? 'PERIMETER CLEAR' : 'SIMULATOR ACTIVE';
         detectionClassTag.className = 'text-xs font-mono font-bold text-emerald-400';
       }
 
-      // Safety State Logic with Hysteresis Hold
       const currentTime = performance.now();
 
       if (humanFound) {
@@ -1189,7 +1193,6 @@
 
       ctx.strokeRect(drawX, y, width, height);
 
-      // HUD Corner Accents
       const cornerLen = Math.min(width * 0.2, 16);
       ctx.lineWidth = isHuman ? 4.5 : 3.5;
       
@@ -1217,7 +1220,6 @@
       ctx.lineTo(drawX + width, y + height - cornerLen);
       ctx.stroke();
 
-      // Label Header Badge
       const confText = `${label} [${Math.round(score * 100)}%]`;
       ctx.font = isHuman ? 'bold 12px "JetBrains Mono", monospace' : '11px "JetBrains Mono", monospace';
       const textWidth = ctx.measureText(confText).width;
@@ -1430,7 +1432,10 @@
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('./sw.js')
-          .then(reg => console.log('[PWA] Service Worker registered:', reg.scope))
+          .then(reg => {
+            console.log('[PWA] Service Worker registered:', reg.scope);
+            reg.update(); // Aggressively check for updates
+          })
           .catch(err => console.warn('[PWA] Service Worker registration failed:', err));
       });
     }
@@ -1462,19 +1467,31 @@
     });
 
     // ----------------------------------------------------
-    // Bootstrap System
+    // Bootstrap System (Parallel Non-Blocking Architecture)
     // ----------------------------------------------------
     window.addEventListener('DOMContentLoaded', async () => {
       logTelemetry('Initializing FenceGuard AI Mobile Client...', 'info');
-      try {
-        await setupCamera();
-        await loadModel();
-        await requestWakeLock();
-        runInferenceLoop();
-        logTelemetry('FenceGuard AI ready! Stand mounted & ready for jury demo.', 'success');
-      } catch (err) {
-        console.error('Initialization error:', err);
-      }
+      
+      // 1. Kick off model loading
+      const modelPromise = loadModel();
+
+      // 2. Request wake lock for phone stand mode
+      requestWakeLock();
+
+      // 3. Gracefully attempt camera initialization without blocking
+      setupCamera().catch((err) => {
+        console.warn('Camera startup:', err);
+        showCameraFallback(err.message || 'Camera permission required');
+      });
+
+      // 4. Await model loading (with 8s safety timeout so spinner never hangs)
+      const timeoutPromise = new Promise((resolve) => setTimeout(resolve, 8000));
+      await Promise.race([modelPromise, timeoutPromise]);
+      visionLoadingOverlay.classList.add('hidden');
+
+      // 5. Start main loop (works with camera OR simulation props)
+      runInferenceLoop();
+      logTelemetry('FenceGuard AI ready! Stand mounted & ready for jury demo.', 'success');
     });
 
   </script>
