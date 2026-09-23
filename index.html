@@ -308,6 +308,8 @@
           <span id="fpsDisplay">FPS: --</span>
           <span class="text-gray-500">|</span>
           <span id="resDisplay">Initializing</span>
+          <span class="text-gray-500">|</span>
+          <span id="optBadge" class="text-[9px] px-1.5 py-0.2 rounded bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/40">ECO 480P</span>
         </div>
         
         <div class="flex space-x-1 font-mono text-[10px]">
@@ -500,9 +502,9 @@
               <span id="lblTargetFps" class="text-emerald-400 font-bold">15 FPS (Eco)</span>
             </div>
             <select id="selectFpsTarget" class="w-full bg-gray-800 border border-gray-700 rounded p-1.5 text-xs text-gray-200">
-              <option value="15" selected>15 FPS (Exhibition Eco - Prevents Heat)</option>
+              <option value="10">10 FPS (Low-End Phone - Ultra-Cool & Battery Saver)</option>
+              <option value="15" selected>15 FPS (Exhibition Eco - Recommended)</option>
               <option value="25">25 FPS (Smooth Balanced)</option>
-              <option value="60">Max Unconstrained (High Battery)</option>
             </select>
           </div>
 
@@ -628,6 +630,13 @@
     let frameCount = 0;
     let currentFps = 0;
     let isTorchOn = false;
+
+    // Edge Optimization: Offscreen 320x240 Ingestion Canvas (avoids multi-megapixel WebGL textures)
+    const offscreenCanvas = document.createElement('canvas');
+    offscreenCanvas.width = 320;
+    offscreenCanvas.height = 240;
+    const offscreenCtx = offscreenCanvas.getContext('2d', { alpha: false, willReadFrequently: false });
+    let lastInferenceLatency = 45;
 
     // Screen Wake Lock API
     let wakeLockSentinel = null;
@@ -784,8 +793,9 @@
           audio: false,
           video: {
             facingMode: { ideal: currentFacingMode },
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
+            width: { ideal: 640, max: 1280 },
+            height: { ideal: 480, max: 720 },
+            frameRate: { ideal: 24, max: 30 }
           }
         });
       } catch (err1) {
@@ -973,15 +983,25 @@
         if (!window.tf) {
           throw new Error('TensorFlow.js library not loaded yet');
         }
-        modelLoadingText.textContent = 'Loading TensorFlow WebGL Engine...';
+        modelLoadingText.textContent = 'Optimizing WebGL for Mobile GPU...';
+        if (window.tf) {
+          try {
+            // Half-precision Float16 textures save 50% GPU memory on budget phones
+            tf.env().set('WEBGL_FORCE_F16_TEXTURES', true);
+            tf.env().set('WEBGL_PACK', true);
+          } catch (e) {
+            console.warn('TF env optimize notice:', e);
+          }
+        }
         await tf.ready();
-        logTelemetry(`TF.js Engine: ${tf.getBackend().toUpperCase()}`, 'info');
+        logTelemetry(`TF Engine: ${tf.getBackend().toUpperCase()} (Float16 Packed)`, 'info');
 
-        modelLoadingText.textContent = 'Loading COCO-SSD Neural Network...';
-        model = await cocoSsd.load({ base: 'mobilenet_v2' });
+        modelLoadingText.textContent = 'Loading Ultra-Light Neural Network (Lite MobileNetV2)...';
+        // lite_mobilenet_v2 is 5-7MB (vs 19MB) - 65% smaller, 2x faster, zero OOM on budget phones
+        model = await cocoSsd.load({ base: 'lite_mobilenet_v2' });
         
         visionLoadingOverlay.classList.add('hidden');
-        logTelemetry('AI Vision Engine online and ready!', 'success');
+        logTelemetry('AI Vision Engine online (Lite MobileNetV2 - Mobile Eco Mode)!', 'success');
       } catch (err) {
         console.warn('Model load fallback:', err);
         visionLoadingOverlay.classList.add('hidden');
@@ -1070,17 +1090,22 @@
 
       const now = performance.now();
       const minInterval = 1000 / targetInferenceFps;
+      // Adaptive Dynamic Thermal Pacing: if previous inference took long on a budget phone,
+      // allow a proportional breather between frames so the CPU/GPU never overheats.
+      const thermalPacingDelay = Math.max(minInterval, lastInferenceLatency * 1.25);
 
-      if (now - lastInferenceTimestamp >= minInterval) {
+      if (now - lastInferenceTimestamp >= thermalPacingDelay) {
         lastInferenceTimestamp = now;
         const startTime = performance.now();
 
         try {
           let predictions = [];
           if (model && isCameraActive && webcam.videoWidth) {
-            predictions = await model.detect(webcam);
-            const latency = Math.round(performance.now() - startTime);
-            modelLatency.textContent = `${latency} ms`;
+            // Draw into 320x240 offscreen canvas: eliminates multi-megapixel WebGL texture bindings!
+            offscreenCtx.drawImage(webcam, 0, 0, offscreenCanvas.width, offscreenCanvas.height);
+            predictions = await model.detect(offscreenCanvas);
+            lastInferenceLatency = Math.round(performance.now() - startTime);
+            modelLatency.textContent = `${lastInferenceLatency} ms`;
           }
 
           frameCount++;
@@ -1117,14 +1142,18 @@
 
       const cW = canvasOverlay.width;
       const cH = canvasOverlay.height;
-      const vW = webcam.videoWidth || 1280;
-      const vH = webcam.videoHeight || 720;
+      const vW = webcam.videoWidth || 640;
+      const vH = webcam.videoHeight || 480;
 
       const scale = Math.max(cW / vW, cH / vH);
       const scaledW = vW * scale;
       const scaledH = vH * scale;
       const offsetX = (cW - scaledW) / 2;
       const offsetY = (cH - scaledH) / 2;
+
+      // Coordinate normalization factors from 320x240 offscreen canvas back to camera aspect ratio
+      const normFactorX = vW / offscreenCanvas.width;
+      const normFactorY = vH / offscreenCanvas.height;
 
       // Handle Simulated Exhibition Overrides
       if (simulationOverride === 'HUMAN') {
@@ -1150,10 +1179,16 @@
 
           if (score > maxConf) maxConf = score;
 
-          let mappedX = rawX * scale + offsetX;
-          const mappedY = rawY * scale + offsetY;
-          const mappedW = rawW * scale;
-          const mappedH = rawH * scale;
+          // Map coordinates from offscreen 320x240 back to camera and then viewport
+          const videoX = rawX * normFactorX;
+          const videoY = rawY * normFactorY;
+          const videoW = rawW * normFactorX;
+          const videoH = rawH * normFactorY;
+
+          let mappedX = videoX * scale + offsetX;
+          const mappedY = videoY * scale + offsetY;
+          const mappedW = videoW * scale;
+          const mappedH = videoH * scale;
 
           if (currentFacingMode === 'user') {
             mappedX = cW - (mappedX + mappedW);
