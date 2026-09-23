@@ -568,6 +568,37 @@
 
     
     // Expanded display names for wildlife exhibition classification
+    
+    // Anti-Jitter Exponential Moving Average (EMA) Filter for Visually Stable Bounding Boxes
+    const smoothedBoxes = new Map();
+    const SMOOTHING_ALPHA = 0.40; // 40% new coordinate, 60% historical coordinate (glides like butter)
+
+    function getSmoothedBox(key, targetX, targetY, targetW, targetH) {
+      const now = performance.now();
+      if (!smoothedBoxes.has(key)) {
+        smoothedBoxes.set(key, { x: targetX, y: targetY, w: targetW, h: targetH, lastSeen: now });
+        return { x: targetX, y: targetY, w: targetW, h: targetH };
+      }
+      const prev = smoothedBoxes.get(key);
+      const elapsed = now - prev.lastSeen;
+      const jumpDistance = Math.hypot(targetX - prev.x, targetY - prev.y);
+
+      // If target jumped suddenly (>250px) or was lost for >400ms, snap immediately without dragging
+      if (elapsed > 400 || jumpDistance > 250) {
+        prev.x = targetX;
+        prev.y = targetY;
+        prev.w = targetW;
+        prev.h = targetH;
+      } else {
+        prev.x = prev.x * (1 - SMOOTHING_ALPHA) + targetX * SMOOTHING_ALPHA;
+        prev.y = prev.y * (1 - SMOOTHING_ALPHA) + targetY * SMOOTHING_ALPHA;
+        prev.w = prev.w * (1 - SMOOTHING_ALPHA) + targetW * SMOOTHING_ALPHA;
+        prev.h = prev.h * (1 - SMOOTHING_ALPHA) + targetH * SMOOTHING_ALPHA;
+      }
+      prev.lastSeen = now;
+      return { x: prev.x, y: prev.y, w: prev.w, h: prev.h };
+    }
+
     function getAnimalDisplayName(label) {
       const map = {
         'cat': 'CAT / TIGER / FELINE',
@@ -1287,15 +1318,39 @@
             if (score > humanConfidence) humanConfidence = score;
 
             if (isFaceFocusMode) {
-              // Face / Head Focus: compute head/face bounding box from upper ~32% of person figure
-              const faceH = mappedH * 0.32;
-              const faceW = Math.min(mappedW * 0.65, faceH * 0.95);
-              const faceX = mappedX + (mappedW - faceW) / 2;
-              const faceY = mappedY + mappedH * 0.03;
-              drawRenderedBox(faceX, faceY, faceW, faceH, 'HUMAN: FACE', score, '#ef4444', true);
+              // Adaptive Anatomical Sizing: accounts for distance and camera framing
+              const personAspect = mappedH / Math.max(1, mappedW);
+              let faceW, faceH, faceX, faceY;
+
+              if (personAspect > 1.85) {
+                // Full body standing figure (far away):
+                // Head is upper ~22% of total height, width ~48% of torso
+                faceH = mappedH * 0.22;
+                faceW = Math.max(mappedW * 0.48, faceH * 0.82);
+                faceX = mappedX + (mappedW - faceW) / 2;
+                faceY = mappedY + mappedH * 0.02;
+              } else if (personAspect > 1.25) {
+                // Upper torso / medium distance:
+                // Head is upper ~42% of box height, width ~62% of box width
+                faceH = mappedH * 0.42;
+                faceW = Math.max(mappedW * 0.62, faceH * 0.84);
+                faceX = mappedX + (mappedW - faceW) / 2;
+                faceY = mappedY + mappedH * 0.03;
+              } else {
+                // Selfie / Close-up Portrait (typical smartphone desk/stand demo):
+                // Head/face dominates the frame (~68% of height, ~75% of width)
+                faceH = mappedH * 0.68;
+                faceW = Math.min(mappedW * 0.76, faceH * 0.88);
+                faceX = mappedX + (mappedW - faceW) / 2;
+                faceY = mappedY + mappedH * 0.04;
+              }
+
+              const smooth = getSmoothedBox(`face_${humanCount}`, faceX, faceY, faceW, faceH);
+              drawRenderedBox(smooth.x, smooth.y, smooth.w, smooth.h, 'HUMAN: FACE', score, '#ef4444', true);
             } else {
-              // Full Figure Mode
-              drawRenderedBox(mappedX, mappedY, mappedW, mappedH, 'HUMAN: BODY', score, '#ef4444', true);
+              // Full Figure Mode with anti-jitter smoothing
+              const smooth = getSmoothedBox(`body_${humanCount}`, mappedX, mappedY, mappedW, mappedH);
+              drawRenderedBox(smooth.x, smooth.y, smooth.w, smooth.h, 'HUMAN: BODY', score, '#ef4444', true);
             }
 
           } else if (ANIMAL_CLASSES.has(label) && score >= animalConfidenceThreshold) {
@@ -1303,7 +1358,8 @@
             animalCount++;
             detectedAnimalTypes.push(label);
             const animalName = getAnimalDisplayName(label);
-            drawRenderedBox(mappedX, mappedY, mappedW, mappedH, animalName, score, '#f59e0b', false);
+            const smooth = getSmoothedBox(`animal_${animalCount}`, mappedX, mappedY, mappedW, mappedH);
+            drawRenderedBox(smooth.x, smooth.y, smooth.w, smooth.h, animalName, score, '#f59e0b', false);
           } else {
             // Strictly avoid detecting anything else when isStrictFilter is active
             if (!isStrictFilter && score > 0.65) {
@@ -1361,51 +1417,90 @@
     function drawRenderedBox(drawX, y, width, height, label, score, color, isHuman = false, isSubtle = false) {
       ctx.save();
 
-      ctx.strokeStyle = color;
-      ctx.lineWidth = isHuman ? 3.5 : 2.5;
+      // 1. Semi-transparent targeting tint fill
+      ctx.fillStyle = isHuman ? 'rgba(239, 68, 68, 0.08)' : 'rgba(245, 158, 11, 0.08)';
+      ctx.fillRect(drawX, y, width, height);
 
+      // 2. Outer bounding outline
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.5;
       ctx.shadowColor = color;
       ctx.shadowBlur = isHuman ? 12 : 6;
-
       ctx.strokeRect(drawX, y, width, height);
 
-      const cornerLen = Math.min(width * 0.2, 16);
-      ctx.lineWidth = isHuman ? 4.5 : 3.5;
-      
+      // 3. Sleek Biometric Corner Brackets [ ]
+      const cornerLen = Math.min(width * 0.22, height * 0.22, 22);
+      ctx.lineWidth = isHuman ? 3.5 : 2.5;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+
+      // Top-Left Bracket
       ctx.beginPath();
       ctx.moveTo(drawX, y + cornerLen);
       ctx.lineTo(drawX, y);
       ctx.lineTo(drawX + cornerLen, y);
       ctx.stroke();
 
+      // Top-Right Bracket
       ctx.beginPath();
       ctx.moveTo(drawX + width - cornerLen, y);
-      ctx.lineTo(drawX + width, y);
+      ctx.lineTo(drawX + width);
       ctx.lineTo(drawX + width, y + cornerLen);
       ctx.stroke();
 
+      // Bottom-Left Bracket
       ctx.beginPath();
       ctx.moveTo(drawX, y + height - cornerLen);
       ctx.lineTo(drawX, y + height);
       ctx.lineTo(drawX + cornerLen, y + height);
       ctx.stroke();
 
+      // Bottom-Right Bracket
       ctx.beginPath();
       ctx.moveTo(drawX + width - cornerLen, y + height);
       ctx.lineTo(drawX + width, y + height);
       ctx.lineTo(drawX + width, y + height - cornerLen);
       ctx.stroke();
 
+      // 4. Center Optical Reticle Crosshair (+)
+      const centerX = drawX + width / 2;
+      const centerY = y + height / 2;
+      const crosshairSize = Math.min(width * 0.08, 7);
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = color;
+      ctx.beginPath();
+      ctx.moveTo(centerX - crosshairSize, centerY);
+      ctx.lineTo(centerX + crosshairSize, centerY);
+      ctx.moveTo(centerX, centerY - crosshairSize);
+      ctx.lineTo(centerX, centerY + crosshairSize);
+      ctx.stroke();
+
+      // 5. Holographic Target Tag Badge
       const confText = `${label} [${Math.round(score * 100)}%]`;
-      ctx.font = isHuman ? 'bold 12px "JetBrains Mono", monospace' : '11px "JetBrains Mono", monospace';
-      const textWidth = ctx.measureText(confText).width;
-      const textHeight = 18;
+      ctx.font = isHuman ? 'bold 11px "JetBrains Mono", monospace' : '10px "JetBrains Mono", monospace';
+      const textMetrics = ctx.measureText(confText);
+      const textWidth = textMetrics.width;
+      const badgeHeight = 20;
+      const badgeWidth = textWidth + 16;
+      // Position badge safely above the box, or inside if too close to the top edge
+      const badgeY = (y >= badgeHeight + 4) ? (y - badgeHeight - 3) : (y + 4);
 
+      // Glassmorphic badge background
+      ctx.fillStyle = 'rgba(3, 7, 18, 0.88)';
+      ctx.fillRect(drawX, badgeY, badgeWidth, badgeHeight);
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = color;
+      ctx.strokeRect(drawX, badgeY, badgeWidth, badgeHeight);
+
+      // Glowing targeting status dot
       ctx.fillStyle = color;
-      ctx.fillRect(drawX, Math.max(0, y - textHeight), textWidth + 10, textHeight);
+      ctx.beginPath();
+      ctx.arc(drawX + 8, badgeY + badgeHeight / 2, 2.5, 0, Math.PI * 2);
+      ctx.fill();
 
-      ctx.fillStyle = '#000000';
-      ctx.fillText(confText, drawX + 5, Math.max(12, y - 4));
+      // Target text
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(confText, drawX + 16, badgeY + 14);
 
       ctx.restore();
     }
