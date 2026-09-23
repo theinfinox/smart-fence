@@ -341,6 +341,14 @@
           <span id="camModeBadge" class="font-mono text-[9px] font-bold text-cyan-300">SELFIE</span>
         </button>
 
+        <!-- Toggle Bounding Box: Face Focus vs Full Figure -->
+        <button id="btnToggleFaceFocus" class="flex items-center space-x-1 px-2 py-1.5 rounded-lg bg-black/70 backdrop-blur-md border border-cyan-500/40 text-cyan-300 hover:text-white hover:bg-gray-800 transition active:scale-95" title="Toggle Bounding Box: Face Focus vs Full Body">
+          <svg class="w-3.5 h-3.5" width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <span id="faceFocusBadge" class="font-mono text-[9px] font-bold text-cyan-300">FACE</span>
+        </button>
+
         <button id="btnPauseDetection" class="p-1.5 rounded-lg bg-black/70 backdrop-blur-md border border-gray-700 text-gray-300 hover:text-white hover:bg-gray-800 transition active:scale-95" title="Pause/Play Detection">
           <svg id="iconPause" class="w-4 h-4 text-gray-300" width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -481,10 +489,10 @@
           <div>
             <div class="flex justify-between mb-1">
               <span class="text-gray-300">Animal Threshold:</span>
-              <span id="lblAnimalThresh" class="text-amber-400 font-bold">50%</span>
+              <span id="lblAnimalThresh" class="text-amber-400 font-bold">35%</span>
             </div>
-            <input type="range" id="sliderAnimalThresh" min="30" max="80" value="50" class="w-full">
-            <span class="text-[9px] text-gray-500 block mt-0.5">Wildlife detection sensitivity</span>
+            <input type="range" id="sliderAnimalThresh" min="20" max="80" value="35" class="w-full">
+            <span class="text-[9px] text-gray-500 block mt-0.5">Wildlife & photo screen detection sensitivity</span>
           </div>
 
           <div>
@@ -508,12 +516,24 @@
             </select>
           </div>
 
-          <div class="pt-2 border-t border-gray-800">
+          <div class="pt-2 border-t border-gray-800 space-y-2">
+            <label class="flex items-center justify-between cursor-pointer">
+              <span class="text-gray-300">Face Focus Bounding Box:</span>
+              <input type="checkbox" id="chkFaceFocusMode" checked class="w-4 h-4 accent-cyan-500 rounded">
+            </label>
+            <span class="text-[9px] text-gray-500 block">Bounds face/head (uncheck for full figure)</span>
+
+            <label class="flex items-center justify-between cursor-pointer">
+              <span class="text-gray-300">Strict Target Filter:</span>
+              <input type="checkbox" id="chkStrictFilter" checked class="w-4 h-4 accent-cyan-500 rounded">
+            </label>
+            <span class="text-[9px] text-gray-500 block">Strictly Human & Animal only (ignores chairs, etc.)</span>
+
             <label class="flex items-center justify-between cursor-pointer">
               <span class="text-gray-300">Screen Wake Lock:</span>
               <input type="checkbox" id="chkAutoWakeLock" checked class="w-4 h-4 accent-cyan-500 rounded">
             </label>
-            <span class="text-[9px] text-gray-500 block mt-0.5">Prevents phone sleep on stand</span>
+            <span class="text-[9px] text-gray-500 block">Prevents phone sleep on stand</span>
           </div>
         </div>
       </div>
@@ -546,13 +566,33 @@
     const NUS_RX_UUID      = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';
     const NUS_TX_UUID      = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
 
+    
+    // Expanded display names for wildlife exhibition classification
+    function getAnimalDisplayName(label) {
+      const map = {
+        'cat': 'CAT / TIGER / FELINE',
+        'dog': 'DOG / CANINE',
+        'bear': 'BEAR / BOAR',
+        'cow': 'COW / BOVINE',
+        'horse': 'HORSE / EQUINE',
+        'sheep': 'SHEEP / DEER',
+        'elephant': 'ELEPHANT',
+        'zebra': 'ZEBRA',
+        'giraffe': 'GIRAFFE',
+        'bird': 'BIRD'
+      };
+      return map[label] || `ANIMAL: ${label.toUpperCase()}`;
+    }
+
     const ANIMAL_CLASSES = new Set([
       'bird', 'cat', 'dog', 'horse', 'sheep', 'cow', 
       'elephant', 'bear', 'zebra', 'giraffe'
     ]);
 
     let humanConfidenceThreshold = 0.55;
-    let animalConfidenceThreshold = 0.50;
+    let animalConfidenceThreshold = 0.35; // Optimized to 35% for easy detection of animal photos & live animals
+    let isFaceFocusMode = true;           // Default to bounding boxes around face/head
+    let isStrictFilter = true;            // Strictly avoid detecting anything else (chairs, etc.)
     let safetyHoldDurationMs = 3000;
     let targetInferenceFps = 15;
     const HEARTBEAT_INTERVAL_MS = 2500;
@@ -594,6 +634,10 @@
     const bleBtnText = document.getElementById('bleBtnText');
     const btnSwitchCam = document.getElementById('btnSwitchCam');
     const camModeBadge = document.getElementById('camModeBadge');
+    const btnToggleFaceFocus = document.getElementById('btnToggleFaceFocus');
+    const faceFocusBadge = document.getElementById('faceFocusBadge');
+    const chkFaceFocusMode = document.getElementById('chkFaceFocusMode');
+    const chkStrictFilter = document.getElementById('chkStrictFilter');
     const btnPauseDetection = document.getElementById('btnPauseDetection');
     const btnTorchToggle = document.getElementById('btnTorchToggle');
     const iconPause = document.getElementById('iconPause');
@@ -829,6 +873,14 @@
           cameraFallbackOverlay.classList.add('hidden');
           syncCanvasDimensions();
           resDisplay.textContent = `${webcam.videoWidth}x${webcam.videoHeight}`;
+
+          // Dynamically size offscreenCanvas to maintain exact camera aspect ratio (undistorted animal/face detection)
+          if (webcam.videoWidth && webcam.videoHeight) {
+            const aspect = webcam.videoWidth / webcam.videoHeight;
+            offscreenCanvas.width = 320;
+            offscreenCanvas.height = Math.round(320 / aspect);
+          }
+
           if (camModeBadge) {
             camModeBadge.textContent = (currentFacingMode === 'user') ? 'SELFIE' : 'REAR';
           }
@@ -959,21 +1011,52 @@
       animalConfidenceThreshold = parseInt(sliderAnimalThresh.value, 10) / 100;
       safetyHoldDurationMs = parseInt(sliderHoldDuration.value, 10) * 100;
       targetInferenceFps = parseInt(selectFpsTarget.value, 10);
+      if (chkFaceFocusMode) isFaceFocusMode = chkFaceFocusMode.checked;
+      if (chkStrictFilter) isStrictFilter = chkStrictFilter.checked;
+      if (faceFocusBadge) faceFocusBadge.textContent = isFaceFocusMode ? 'FACE' : 'BODY';
       calibrationDrawer.classList.add('hidden');
-      logTelemetry(`Calibrated: Human >= ${sliderHumanThresh.value}%, Animal >= ${sliderAnimalThresh.value}%, Hold = ${(safetyHoldDurationMs / 1000).toFixed(1)}s`, 'success');
+      logTelemetry(`Calibrated: Human >= ${sliderHumanThresh.value}%, Animal >= ${sliderAnimalThresh.value}%, Hold = ${(safetyHoldDurationMs / 1000).toFixed(1)}s, Box = ${isFaceFocusMode ? 'Face' : 'Full'}`, 'success');
     });
 
     btnResetDefaults.addEventListener('click', () => {
       sliderHumanThresh.value = 55;
       lblHumanThresh.textContent = '55%';
-      sliderAnimalThresh.value = 50;
-      lblAnimalThresh.textContent = '50%';
+      sliderAnimalThresh.value = 35;
+      lblAnimalThresh.textContent = '35%';
       sliderHoldDuration.value = 30;
       lblHoldDuration.textContent = '3.0s';
       selectFpsTarget.value = "15";
       lblTargetFps.textContent = '15 FPS (Eco)';
       chkAutoWakeLock.checked = true;
+      if (chkFaceFocusMode) chkFaceFocusMode.checked = true;
+      if (chkStrictFilter) chkStrictFilter.checked = true;
+      isFaceFocusMode = true;
+      isStrictFilter = true;
+      if (faceFocusBadge) faceFocusBadge.textContent = 'FACE';
     });
+
+    if (btnToggleFaceFocus) {
+      btnToggleFaceFocus.addEventListener('click', () => {
+        isFaceFocusMode = !isFaceFocusMode;
+        if (chkFaceFocusMode) chkFaceFocusMode.checked = isFaceFocusMode;
+        faceFocusBadge.textContent = isFaceFocusMode ? 'FACE' : 'BODY';
+        logTelemetry(`Bounding Box Mode: ${isFaceFocusMode ? 'FACE FOCUS' : 'FULL BODY'}`, 'info');
+      });
+    }
+
+    if (chkFaceFocusMode) {
+      chkFaceFocusMode.addEventListener('change', (e) => {
+        isFaceFocusMode = e.target.checked;
+        if (faceFocusBadge) faceFocusBadge.textContent = isFaceFocusMode ? 'FACE' : 'BODY';
+      });
+    }
+
+    if (chkStrictFilter) {
+      chkStrictFilter.addEventListener('change', (e) => {
+        isStrictFilter = e.target.checked;
+        logTelemetry(`Strict Target Filter: ${isStrictFilter ? 'ENABLED' : 'DISABLED'}`, 'info');
+      });
+    }
 
     // ----------------------------------------------------
     // TensorFlow.js & COCO-SSD Model Initialization
@@ -1161,13 +1244,17 @@
         humanConfidence = 0.94;
         humanCount = 1;
         maxConf = 0.94;
-        drawRenderedBox(cW * 0.25, cH * 0.15, cW * 0.5, cH * 0.7, 'HUMAN [SIMULATED]', 0.94, '#ef4444', true);
+        if (isFaceFocusMode) {
+          drawRenderedBox(cW * 0.38, cH * 0.18, cW * 0.24, cH * 0.28, 'HUMAN: FACE [SIMULATED]', 0.94, '#ef4444', true);
+        } else {
+          drawRenderedBox(cW * 0.25, cH * 0.15, cW * 0.5, cH * 0.7, 'HUMAN: BODY [SIMULATED]', 0.94, '#ef4444', true);
+        }
       } else if (simulationOverride === 'ANIMAL') {
         animalFound = true;
         animalCount = 1;
         maxConf = 0.88;
         detectedAnimalTypes.push('cow');
-        drawRenderedBox(cW * 0.2, cH * 0.3, cW * 0.6, cH * 0.5, 'ANIMAL: COW [SIMULATED]', 0.88, '#f59e0b', false);
+        drawRenderedBox(cW * 0.2, cH * 0.3, cW * 0.6, cH * 0.5, 'ANIMAL: COW / BOVINE [SIMULATED]', 0.88, '#f59e0b', false);
       }
 
       // Normal Predictions Loop
@@ -1198,14 +1285,28 @@
             humanFound = true;
             humanCount++;
             if (score > humanConfidence) humanConfidence = score;
-            drawRenderedBox(mappedX, mappedY, mappedW, mappedH, 'HUMAN', score, '#ef4444', true);
+
+            if (isFaceFocusMode) {
+              // Face / Head Focus: compute head/face bounding box from upper ~32% of person figure
+              const faceH = mappedH * 0.32;
+              const faceW = Math.min(mappedW * 0.65, faceH * 0.95);
+              const faceX = mappedX + (mappedW - faceW) / 2;
+              const faceY = mappedY + mappedH * 0.03;
+              drawRenderedBox(faceX, faceY, faceW, faceH, 'HUMAN: FACE', score, '#ef4444', true);
+            } else {
+              // Full Figure Mode
+              drawRenderedBox(mappedX, mappedY, mappedW, mappedH, 'HUMAN: BODY', score, '#ef4444', true);
+            }
+
           } else if (ANIMAL_CLASSES.has(label) && score >= animalConfidenceThreshold) {
             animalFound = true;
             animalCount++;
             detectedAnimalTypes.push(label);
-            drawRenderedBox(mappedX, mappedY, mappedW, mappedH, `ANIMAL: ${label.toUpperCase()}`, score, '#f59e0b', false);
+            const animalName = getAnimalDisplayName(label);
+            drawRenderedBox(mappedX, mappedY, mappedW, mappedH, animalName, score, '#f59e0b', false);
           } else {
-            if (score > 0.65) {
+            // Strictly avoid detecting anything else when isStrictFilter is active
+            if (!isStrictFilter && score > 0.65) {
               drawRenderedBox(mappedX, mappedY, mappedW, mappedH, label.toUpperCase(), score, '#475569', false, true);
             }
           }
@@ -1221,11 +1322,12 @@
           detectionClassTag.textContent = `OVERRIDE: HUMAN + ANIMAL`;
           detectionClassTag.className = 'text-[10px] font-mono font-bold text-red-400 animate-pulse';
         } else {
-          detectionClassTag.textContent = `HUMAN (${Math.round(humanConfidence * 100)}%)`;
+          const typeLabel = isFaceFocusMode ? 'HUMAN: FACE' : 'HUMAN: BODY';
+          detectionClassTag.textContent = `${typeLabel} (${Math.round(humanConfidence * 100)}%)`;
           detectionClassTag.className = 'text-xs font-mono font-bold text-red-400';
         }
       } else if (animalFound) {
-        detectionClassTag.textContent = `ANIMAL: ${detectedAnimalTypes[0].toUpperCase()}`;
+        detectionClassTag.textContent = getAnimalDisplayName(detectedAnimalTypes[0]);
         detectionClassTag.className = 'text-xs font-mono font-bold text-amber-400';
       } else {
         detectionClassTag.textContent = isCameraActive ? 'PERIMETER CLEAR' : 'SIMULATOR ACTIVE';
