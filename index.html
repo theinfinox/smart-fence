@@ -1482,25 +1482,33 @@
       const textWidth = textMetrics.width;
       const badgeHeight = 20;
       const badgeWidth = textWidth + 16;
+      
       // Position badge safely above the box, or inside if too close to the top edge
       const badgeY = (y >= badgeHeight + 4) ? (y - badgeHeight - 3) : (y + 4);
+      let badgeX = drawX;
+      if (badgeX + badgeWidth > ctx.canvas.width - 4) {
+        badgeX = Math.max(4, ctx.canvas.width - badgeWidth - 4);
+      }
+      if (badgeX < 4) {
+        badgeX = 4;
+      }
 
       // Glassmorphic badge background
       ctx.fillStyle = 'rgba(3, 7, 18, 0.88)';
-      ctx.fillRect(drawX, badgeY, badgeWidth, badgeHeight);
+      ctx.fillRect(badgeX, badgeY, badgeWidth, badgeHeight);
       ctx.lineWidth = 1;
       ctx.strokeStyle = color;
-      ctx.strokeRect(drawX, badgeY, badgeWidth, badgeHeight);
+      ctx.strokeRect(badgeX, badgeY, badgeWidth, badgeHeight);
 
       // Glowing targeting status dot
       ctx.fillStyle = color;
       ctx.beginPath();
-      ctx.arc(drawX + 8, badgeY + badgeHeight / 2, 2.5, 0, Math.PI * 2);
+      ctx.arc(badgeX + 8, badgeY + badgeHeight / 2, 2.5, 0, Math.PI * 2);
       ctx.fill();
 
       // Target text
       ctx.fillStyle = '#ffffff';
-      ctx.fillText(confText, drawX + 16, badgeY + 14);
+      ctx.fillText(confText, badgeX + 16, badgeY + 14);
 
       ctx.restore();
     }
